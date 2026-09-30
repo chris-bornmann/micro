@@ -1,6 +1,6 @@
 // Central game state: the coordinator's own types. No behaviour beyond
 // the one conversion helper OilyTiles needs to be JSON-representable.
-package main
+package game
 
 import (
 	"encoding/json"

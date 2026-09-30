@@ -1,7 +1,7 @@
 // Read-only views: what the player is carrying, what is on the floor
 // here, their own condition, the command list. None of these mutate
 // state or cost a turn.
-package main
+package game
 
 import (
 	"encoding/json"

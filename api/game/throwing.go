@@ -1,6 +1,6 @@
 // Throwing: choosing an item, choosing a direction, and resolving what
 // the thrown thing hits.
-package main
+package game
 
 import (
 	"encoding/json"

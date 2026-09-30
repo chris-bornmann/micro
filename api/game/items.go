@@ -1,7 +1,7 @@
 // Items: picking them up, using them, equipping them, dropping them,
 // and the candidate lists each of those offers when more than one
 // carried item would match.
-package main
+package game
 
 import (
 	"encoding/json"

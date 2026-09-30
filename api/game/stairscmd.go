@@ -1,6 +1,6 @@
 // Taking a staircase. The level transition it triggers lives in
 // levels.go; this is only the command half.
-package main
+package game
 
 import (
 	"fmt"

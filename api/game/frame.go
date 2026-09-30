@@ -8,7 +8,7 @@
 // lived in four closures inside main(), which is to say they lived in the
 // UI.
 
-package main
+package game
 
 import (
 	"fmt"

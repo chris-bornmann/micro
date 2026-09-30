@@ -1,7 +1,7 @@
 // Calls into every other service. Each function here is JSON-in,
 // JSON-out and touches no coordinator state, so each is independently
 // the seam where that service could become a network call.
-package main
+package game
 
 import (
 	"encoding/json"

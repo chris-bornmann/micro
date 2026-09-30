@@ -1,6 +1,6 @@
 // The turn loop: dispatch a key, then run everything that happens
 // after the player has acted.
-package main
+package game
 
 import (
 	"encoding/json"

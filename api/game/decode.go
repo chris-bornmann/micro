@@ -2,7 +2,7 @@
 // envelope types those replies arrive in. The coordinator stores each
 // service's own state verbatim and looks only at the fields every
 // service agrees on; this is the whole of that narrow view.
-package main
+package game
 
 import (
 	"encoding/json"

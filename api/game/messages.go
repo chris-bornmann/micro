@@ -1,6 +1,6 @@
 // Turn text. Every player-visible sentence the coordinator itself
 // composes is built here, out of the outcome values services report.
-package main
+package game
 
 import (
 	"fmt"
