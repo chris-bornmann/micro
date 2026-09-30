@@ -19,7 +19,10 @@
       "Bash(head -20 /tmp/hack_verify_out.log; rm -f /tmp/hack_verify /tmp/hack_verify_out.log)",
       "Bash(find /Users/cbb/go/pkg/mod/golang.org/x/image@v0.24.0/font -maxdepth 2 -type d)",
       "Read(//Users/cbb/go/pkg/mod/golang.org/x/image@v0.24.0/font/**)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(git check-ignore *)",
+      "Bash(git rm *)",
+      "Bash(echo \"--- exit: $? \\(empty above = all green\\) ---\")"
     ],
     "additionalDirectories": [
       "/private/tmp",
