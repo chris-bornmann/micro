@@ -78,40 +78,40 @@ func throwItem(state *GameState) (string, bool, error) {
 // so an unrelated keypress cancels the throw silently — the same "any
 // other key cancels" convention resolvePendingSelection's letter-picker
 // path already follows.
-func resolveThrow(state *GameState, ci carriedItem, key string) (string, error) {
+func resolveThrow(state *GameState, ci carriedItem, key string) ([]string, error) {
 	switch key {
 	case "Up", "Down", "Left", "Right":
 	default:
-		return "", nil // cancelled: not a direction, matches the picker-cancel convention
+		return nil, nil // cancelled: not a direction, matches the picker-cancel convention
 	}
 
 	it, err := itemInfo(ci.Raw)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	playerObj, err := playerObject(state.PlayerState)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	liveMonsters, err := liveMonsterObjects(state)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	augObjects := append([]overlay.Object{playerObj}, liveMonsters...)
 	aug := world.AugmentedMap{Map: *state.Map, Objects: augObjects}
 	augJSON, err := json.Marshal(aug)
 	if err != nil {
-		return "", fmt.Errorf("marshal augmented map: %w", err)
+		return nil, fmt.Errorf("marshal augmented map: %w", err)
 	}
 
 	respJSON, err := player.Throw(state.PlayerState, augJSON, it.ID, key)
 	if err != nil {
-		return "", fmt.Errorf("player throw: %w", err)
+		return nil, fmt.Errorf("player throw: %w", err)
 	}
 	var tresp actionEnvelope
 	if err := json.Unmarshal(respJSON, &tresp); err != nil {
-		return "", fmt.Errorf("parse player throw response: %w", err)
+		return nil, fmt.Errorf("parse player throw response: %w", err)
 	}
 	state.PlayerState = tresp.Self
 
@@ -129,7 +129,7 @@ func resolveThrow(state *GameState, ci carriedItem, key string) (string, error) 
 	default:
 		relocated, err := relocateItem(ci.Raw, tresp.Result.X, tresp.Result.Y)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		state.FloorItems = append(state.FloorItems, relocated)
 	}
@@ -137,11 +137,11 @@ func resolveThrow(state *GameState, ci carriedItem, key string) (string, error) 
 		if idx, ok := monsterIndexAt(state, tresp.Result.X, tresp.Result.Y); ok {
 			attackJSON, err := json.Marshal(tresp.Result)
 			if err != nil {
-				return "", fmt.Errorf("marshal thrown attack: %w", err)
+				return nil, fmt.Errorf("marshal thrown attack: %w", err)
 			}
 			msgs, err := attackMonster(state, idx, attackJSON)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			messages = append(messages, msgs...)
 		}

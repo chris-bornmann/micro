@@ -13,7 +13,24 @@ import (
 	"map_api/world"
 )
 
-// handleKey processes one keypress. If a equip/quaff/drop/pickup picker
+// handleKey is handleKeyMessages with this turn's messages joined into one
+// string, the shape the game used before a turn's text had to travel over a
+// network.
+//
+// It stays because it is what reads well at a call site that just wants to
+// show the player a line of text, and because every one of hack's tests
+// drives the game through it — keeping it meant pluralizing the turn
+// pipeline without editing a single test, which is the only real evidence
+// that the pluralization changed nothing.
+func handleKey(state *GameState, key string) (string, error) {
+	messages, err := handleKeyMessages(state, key)
+	if err != nil {
+		return "", err
+	}
+	return joinMessages(messages), nil
+}
+
+// handleKeyMessages processes one keypress. If a equip/quaff/drop/pickup picker
 // is currently open (state.PendingSelection != nil), the key is
 // interpreted as that picker's follow-up letter instead of a normal game
 // command — see resolvePendingSelection. Otherwise, if the Player is
@@ -35,75 +52,75 @@ import (
 // reveal fog, then give the Goblin its turn. Neither player nor goblin
 // nor potion ever calls back into hack or into each other — hack calls
 // them, feeds them JSON, and stores whatever JSON they return.
-func handleKey(state *GameState, key string) (string, error) {
+func handleKeyMessages(state *GameState, key string) ([]string, error) {
 	if state.PendingSelection != nil {
 		return resolvePendingSelection(state, key)
 	}
 
 	playerObj, err := playerObject(state.PlayerState)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if playerObj.Dead {
-		return "Game Over", nil
+		return []string{"Game Over"}, nil
 	}
 
 	switch key {
 	case ",":
 		msg, done, err := pickUp(state, playerObj)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !done {
-			return "", nil
+			return nil, nil
 		}
 		return finishTurn(state, messagesOf(msg))
 	case "<":
 		msg, err := applyStairs(state, playerObj, stairs.KindUp, "up")
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		return finishTurn(state, messagesOf(msg))
 	case ">":
 		msg, err := applyStairs(state, playerObj, stairs.KindDown, "down")
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		return finishTurn(state, messagesOf(msg))
 	case "A":
 		msg, done, err := useItem(state)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !done {
-			return "", nil
+			return nil, nil
 		}
 		return finishTurn(state, messagesOf(msg))
 	case "E":
 		msg, done, err := equipItem(state)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !done {
-			return "", nil
+			return nil, nil
 		}
 		return finishTurn(state, messagesOf(msg))
 	case "D":
 		msg, done, err := dropItem(state)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !done {
-			return "", nil
+			return nil, nil
 		}
 		return finishTurn(state, messagesOf(msg))
 	case "T":
 		msg, done, err := throwItem(state)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if !done {
-			return "", nil
+			return nil, nil
 		}
 		return finishTurn(state, messagesOf(msg))
 	default:
@@ -114,21 +131,21 @@ func handleKey(state *GameState, key string) (string, error) {
 		// it.
 		liveMonsters, err := liveMonsterObjects(state)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		augObjects := append([]overlay.Object{playerObj}, liveMonsters...)
 		aug := world.AugmentedMap{Map: *state.Map, Objects: augObjects, OilyTiles: state.oilyTilesSlice()}
 		augJSON, err := json.Marshal(aug)
 		if err != nil {
-			return "", fmt.Errorf("marshal augmented map: %w", err)
+			return nil, fmt.Errorf("marshal augmented map: %w", err)
 		}
 		respJSON, err := player.Action(state.PlayerState, augJSON, key)
 		if err != nil {
-			return "", fmt.Errorf("player action: %w", err)
+			return nil, fmt.Errorf("player action: %w", err)
 		}
 		var presp actionEnvelope
 		if err := json.Unmarshal(respJSON, &presp); err != nil {
-			return "", fmt.Errorf("parse player response: %w", err)
+			return nil, fmt.Errorf("parse player response: %w", err)
 		}
 		state.PlayerState = presp.Self
 
@@ -137,11 +154,11 @@ func handleKey(state *GameState, key string) (string, error) {
 			if idx, ok := monsterIndexAt(state, presp.Result.X, presp.Result.Y); ok {
 				attackJSON, err := json.Marshal(presp.Result)
 				if err != nil {
-					return "", fmt.Errorf("marshal player attack: %w", err)
+					return nil, fmt.Errorf("marshal player attack: %w", err)
 				}
 				msgs, err := attackMonster(state, idx, attackJSON)
 				if err != nil {
-					return "", err
+					return nil, err
 				}
 				messages = append(messages, msgs...)
 			}
@@ -160,14 +177,14 @@ func handleKey(state *GameState, key string) (string, error) {
 // off) and whatever the Goblin's turn adds. Tick runs first so the
 // playerObj fed to goblin.Action this same turn always carries this
 // turn's up-to-date Invisible state, not last turn's.
-func finishTurn(state *GameState, messages []string) (string, error) {
+func finishTurn(state *GameState, messages []string) ([]string, error) {
 	tickJSON, err := player.Tick(state.PlayerState)
 	if err != nil {
-		return "", fmt.Errorf("player tick: %w", err)
+		return nil, fmt.Errorf("player tick: %w", err)
 	}
 	var tresp tickEnvelope
 	if err := json.Unmarshal(tickJSON, &tresp); err != nil {
-		return "", fmt.Errorf("parse player tick response: %w", err)
+		return nil, fmt.Errorf("parse player tick response: %w", err)
 	}
 	state.PlayerState = tresp.Self
 	if msg := tickMessage(tresp.Outcome); msg != "" {
@@ -182,35 +199,35 @@ func finishTurn(state *GameState, messages []string) (string, error) {
 		ms := &state.Monsters[i]
 		obj, err := monsterObject(ms.State)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if obj.Dead {
 			continue
 		}
 		svc, ok := monsterServices[ms.Kind]
 		if !ok {
-			return "", fmt.Errorf("hack: no monster service registered for kind %q", ms.Kind)
+			return nil, fmt.Errorf("hack: no monster service registered for kind %q", ms.Kind)
 		}
 		tickJSON, err := svc.Tick(ms.State)
 		if err != nil {
-			return "", fmt.Errorf("%s tick: %w", ms.Kind, err)
+			return nil, fmt.Errorf("%s tick: %w", ms.Kind, err)
 		}
 		var tresp tickEnvelope
 		if err := json.Unmarshal(tickJSON, &tresp); err != nil {
-			return "", fmt.Errorf("parse %s tick response: %w", ms.Kind, err)
+			return nil, fmt.Errorf("parse %s tick response: %w", ms.Kind, err)
 		}
 		ms.State = tresp.Self
 		if msg := monsterBurnMessage(svc.DisplayName, tresp.Outcome); msg != "" {
 			messages = append(messages, msg)
 		}
 		if err := finalizeMonsterDeathIfAny(state, i); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	playerObj, err := playerObject(state.PlayerState)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	state.Visited.reveal(state.Map, playerObj.X, playerObj.Y)
 	litTiles, _, _ := vision.CurrentlyLit(*state.Map, playerObj.X, playerObj.Y, playerObj.Lit)
@@ -224,7 +241,7 @@ func finishTurn(state *GameState, messages []string) (string, error) {
 		ms := &state.Monsters[i]
 		obj, err := monsterObject(ms.State)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		if obj.Dead {
 			continue
@@ -233,36 +250,36 @@ func finishTurn(state *GameState, messages []string) (string, error) {
 		aug := world.AugmentedMap{Map: *state.Map, Objects: []overlay.Object{playerObj}, OilyTiles: state.oilyTilesSlice()}
 		augJSON, err := json.Marshal(aug)
 		if err != nil {
-			return "", fmt.Errorf("marshal augmented map: %w", err)
+			return nil, fmt.Errorf("marshal augmented map: %w", err)
 		}
 		aRespJSON, err := svc.Action(ms.State, augJSON)
 		if err != nil {
-			return "", fmt.Errorf("%s action: %w", ms.Kind, err)
+			return nil, fmt.Errorf("%s action: %w", ms.Kind, err)
 		}
 		var aresp actionEnvelope
 		if err := json.Unmarshal(aRespJSON, &aresp); err != nil {
-			return "", fmt.Errorf("parse %s response: %w", ms.Kind, err)
+			return nil, fmt.Errorf("parse %s response: %w", ms.Kind, err)
 		}
 		ms.State = aresp.Self
 
 		if aresp.Result.Action == "attack" {
 			attackJSON, err := json.Marshal(aresp.Result)
 			if err != nil {
-				return "", fmt.Errorf("marshal %s attack: %w", ms.Kind, err)
+				return nil, fmt.Errorf("marshal %s attack: %w", ms.Kind, err)
 			}
 			dRespJSON, err := player.Defend(state.PlayerState, attackJSON)
 			if err != nil {
-				return "", fmt.Errorf("player defend: %w", err)
+				return nil, fmt.Errorf("player defend: %w", err)
 			}
 			var dresp defendEnvelope
 			if err := json.Unmarshal(dRespJSON, &dresp); err != nil {
-				return "", fmt.Errorf("parse player defend response: %w", err)
+				return nil, fmt.Errorf("parse player defend response: %w", err)
 			}
 			state.PlayerState = dresp.Self
 			messages = append(messages, playerDefendMessage(dresp.Outcome))
 		}
 	}
-	return joinMessages(messages), nil
+	return messages, nil
 }
 
 // floorItemsAt returns every state.FloorItems entry sitting at (x,y), in
@@ -317,7 +334,7 @@ func pickupCandidatesAt(state *GameState, x, y int) ([]json.RawMessage, error) {
 // existing convention that bad input is absorbed harmlessly (an
 // unrecognized move key already falls through to a no-op) rather than
 // surfaced as an error.
-func resolvePendingSelection(state *GameState, key string) (string, error) {
+func resolvePendingSelection(state *GameState, key string) ([]string, error) {
 	sel := state.PendingSelection
 	state.PendingSelection = nil // cleared unconditionally: cancel or complete, either way it's resolved
 
@@ -334,13 +351,13 @@ func resolvePendingSelection(state *GameState, key string) (string, error) {
 		}
 	}
 	if idx == -1 {
-		return "", nil
+		return nil, nil
 	}
 
 	chosen := sel.Candidates[idx].Raw
 	it, err := itemInfo(chosen)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if sel.Action == pendingThrow {
@@ -348,7 +365,7 @@ func resolvePendingSelection(state *GameState, key string) (string, error) {
 		// open a new pendingSelection waiting for that, rather than
 		// completing the turn now.
 		state.PendingSelection = &pendingSelection{Action: pendingThrow, Item: &sel.Candidates[idx]}
-		return "", nil
+		return nil, nil
 	}
 
 	var msg string
@@ -363,7 +380,7 @@ func resolvePendingSelection(state *GameState, key string) (string, error) {
 		msg, err = applyPickup(state, it, chosen)
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	return finishTurn(state, messagesOf(msg))
 }
