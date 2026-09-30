@@ -1,0 +1,104 @@
+# Drive the server without a client. Needs the REST Client extension
+# (humao.rest-client) — already listed in .vscode/extensions.json.
+#
+# Start the server first: Run Task -> "serve", or F5 -> "mapd (server)".
+#
+# Click "Send Request" above any block. Run "new game" first: the other
+# requests read its game_id out of the response.
+#
+# Because `rows` is plain text, you can read the dungeon directly in the
+# response pane.
+
+@host = http://localhost:8080
+@game = {{new.response.body.game_id}}
+
+### health
+GET {{host}}/healthz
+
+# @name new
+### new game — seed is optional, and is the ONLY thing a client may choose
+POST {{host}}/v1/games
+Content-Type: application/json
+
+{"seed": 1234}
+
+### the current frame, without touching the game
+GET {{host}}/v1/games/{{game}}/frame
+
+### move
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "Down"}
+
+### wait a turn in place
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "."}
+
+### pick up whatever is here — may answer with a prompt instead of a frame
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": ","}
+
+### drop something — always opens a picker when anything is carried
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "D"}
+
+### answer an open prompt with a letter (or a direction, for a throw)
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "A"}
+
+### cancel an open prompt — any non-matching key does, and costs no turn
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "Escape"}
+
+### descend
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": ">"}
+
+### read-only views: inventory | look | status | help — none costs a turn
+GET {{host}}/v1/games/{{game}}/views/inventory
+
+###
+GET {{host}}/v1/games/{{game}}/views/look
+
+###
+GET {{host}}/v1/games/{{game}}/views/status
+
+###
+GET {{host}}/v1/games/{{game}}/views/help
+
+### replay a whole script in one round trip — this is what a bug report is
+POST {{host}}/v1/games/{{game}}/commands
+Content-Type: application/json
+
+{"keys": ["Down", "Down", "Right", ",", "."]}
+
+### an unbound key is NOT an error: it wastes a turn, as it always has
+POST {{host}}/v1/games/{{game}}/command
+Content-Type: application/json
+
+{"key": "banana"}
+
+### dungeon settings are server policy — this must be refused with 400
+POST {{host}}/v1/games
+Content-Type: application/json
+
+{"seed": 1, "hidden_door_percent": 0, "num_rooms": 40}
+
+### unknown view — 404, and the error lists the real ones
+GET {{host}}/v1/games/{{game}}/views/spellbook
+
+### unknown game — 404
+GET {{host}}/v1/games/nope/frame

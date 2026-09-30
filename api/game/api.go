@@ -10,6 +10,7 @@ package game
 
 import (
 	"fmt"
+	"math/rand"
 	"sync"
 
 	"map_api/item"
@@ -37,11 +38,6 @@ type Game struct {
 	// show what the game is otherwise hiding.
 	reveal bool
 	full   bool
-
-	// turn counts consumed turns. It does not advance when a command opens
-	// a picker or is refused, so a client can distinguish "nothing
-	// happened" from "a turn passed" without parsing messages.
-	turn int
 }
 
 // CommandResponse is the result of one keypress.
@@ -113,6 +109,12 @@ func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
 	// Relocate the flask near the Player's spawn point — a level-1-only
 	// startup nicety (so it's immediately findable for testing) that
 	// isn't generalized to every level populateLevel builds afterward.
+	//
+	// Seeded from the map's own seed, like every other spawn-time
+	// placement, so that a given seed reproduces a given opening
+	// position. The offset keeps this stream from correlating with the
+	// item/stairs/spawn-count streams populateLevel derives the same way.
+	relocateRNG := rand.New(rand.NewSource(ls.Map.Seed + 37))
 	for i, raw := range ls.FloorItems {
 		it, err := itemInfo(raw)
 		if err != nil {
@@ -121,7 +123,7 @@ func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
 		if it.Category != item.CategoryFlask {
 			continue
 		}
-		if x, y, ok := tileNearPlayer(ls.Map, p.X, p.Y); ok {
+		if x, y, ok := tileNearPlayer(ls.Map, p.X, p.Y, relocateRNG); ok {
 			relocated, err := relocateItem(raw, x, y)
 			if err != nil {
 				return nil, err
@@ -153,7 +155,7 @@ func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
 func (g *Game) Frame() (Frame, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return buildFrame(g.state, g.turn, g.reveal, g.full)
+	return buildFrame(g.state, g.state.Turn, g.reveal, g.full)
 }
 
 // Command applies one keypress.
@@ -177,8 +179,7 @@ func (g *Game) Command(key string) (CommandResponse, error) {
 		return CommandResponse{Prompt: prompt}, nil
 	}
 
-	g.turn++
-	f, err := buildFrame(g.state, g.turn, g.reveal, g.full)
+	f, err := buildFrame(g.state, g.state.Turn, g.reveal, g.full)
 	if err != nil {
 		return CommandResponse{}, err
 	}

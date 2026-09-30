@@ -60,6 +60,15 @@ type GameState struct {
 	// function it has.
 	SpawnedOnce map[string]bool
 
+	// Turn counts turns the Player has actually consumed. It is incremented
+	// in exactly one place, finishTurn, because that is the one place a turn
+	// completes — every branch that spends a turn ends by calling it, and
+	// every branch that does not (a picker opening, a picker cancelled, a
+	// command refused, a read-only view) never reaches it. Counting anywhere
+	// else means counting keypresses, which is a different and less useful
+	// number.
+	Turn int
+
 	*levelState
 }
 

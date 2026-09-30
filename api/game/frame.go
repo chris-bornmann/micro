@@ -52,8 +52,12 @@ type Frame struct {
 
 	// HUD is the always-visible status strip, already formatted. The client
 	// prints the strings; it never learns what an attribute is.
-	HUD      []string `json:"hud,omitempty"`
-	GameOver bool     `json:"game_over,omitempty"`
+	HUD []string `json:"hud,omitempty"`
+	// GameOver is sent even when false, unlike HUD. An absent array and an
+	// empty one mean the same thing, but a client reading a boolean should
+	// not have to treat "absent" and "false" as the same case — and a frame
+	// whose key set is stable is one a golden test can actually pin.
+	GameOver bool `json:"game_over"`
 }
 
 // visibleObjects returns every object the player can perceive right now:

@@ -210,7 +210,13 @@ func randomUnoccupiedTile(state *GameState) (x, y int, ok bool) {
 // in a random room elsewhere on the map, the way its own package-level
 // Init would otherwise place it. ok is false if the Player isn't in a
 // room (shouldn't happen) or the room is 1x1.
-func tileNearPlayer(m *mapdata.Map, playerX, playerY int) (x, y int, ok bool) {
+//
+// rng is passed in rather than taken from the global source because this
+// is a spawn-time placement, and spawn-time placement is seeded from
+// m.Seed so that a given seed reproduces a given opening position (see
+// populateLevel, and randomUnoccupiedTile for the turn-time convention
+// this deliberately does not follow).
+func tileNearPlayer(m *mapdata.Map, playerX, playerY int, rng *rand.Rand) (x, y int, ok bool) {
 	room, ok := m.RoomAt(playerX, playerY)
 	if !ok {
 		return 0, 0, false
@@ -228,7 +234,7 @@ func tileNearPlayer(m *mapdata.Map, playerX, playerY int) (x, y int, ok bool) {
 	if len(candidates) == 0 {
 		return 0, 0, false
 	}
-	chosen := candidates[rand.Intn(len(candidates))]
+	chosen := candidates[rng.Intn(len(candidates))]
 	return chosen.X, chosen.Y, true
 }
 

@@ -178,6 +178,9 @@ func handleKeyMessages(state *GameState, key string) ([]string, error) {
 // playerObj fed to goblin.Action this same turn always carries this
 // turn's up-to-date Invisible state, not last turn's.
 func finishTurn(state *GameState, messages []string) ([]string, error) {
+	// A turn is now definitively being spent; see GameState.Turn.
+	state.Turn++
+
 	tickJSON, err := player.Tick(state.PlayerState)
 	if err != nil {
 		return nil, fmt.Errorf("player tick: %w", err)

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"map_api/player"
 	"map_api/screen"
 )
 
@@ -289,5 +290,63 @@ func TestFrameCarriesAHUDAndTitle(t *testing.T) {
 	}
 	if f.Level != 1 {
 		t.Errorf("Level = %d, want 1", f.Level)
+	}
+}
+
+// TestTurnCountsTurnsNotKeypresses pins the distinction a client relies on to
+// tell "a turn passed" from "nothing happened" without reading messages.
+//
+// It was originally wrong in the other direction: the counter lived on Game
+// and incremented once per command that did not leave a prompt open, so
+// cancelling a picker with Escape — which spends no turn — still advanced it.
+// Counting inside finishTurn instead makes the number mean what it says,
+// because finishTurn is reached by exactly the branches that spend a turn.
+func TestTurnCountsTurnsNotKeypresses(t *testing.T) {
+	state := newLevel1TestState(t)
+
+	if state.Turn != 0 {
+		t.Fatalf("Turn = %d on a fresh game, want 0", state.Turn)
+	}
+
+	// Waiting spends a turn.
+	if _, err := handleKey(state, "."); err != nil {
+		t.Fatalf("handleKey(\".\"): %v", err)
+	}
+	if state.Turn != 1 {
+		t.Errorf("Turn = %d after waiting, want 1", state.Turn)
+	}
+
+	// Opening a picker does not. "D" always opens one when anything is
+	// carried, so give the Player something first.
+	give := func() {
+		t.Helper()
+		raw := potionAt(t, state.Map, 0, 0)
+		items, err := player.PickUp(state.PlayerState, raw)
+		if err != nil {
+			t.Fatalf("PickUp: %v", err)
+		}
+		state.PlayerState = items
+	}
+	give()
+	before := state.Turn
+	if _, err := handleKey(state, "D"); err != nil {
+		t.Fatalf("handleKey(\"D\"): %v", err)
+	}
+	if state.PendingSelection == nil {
+		t.Fatal("expected \"D\" to open a picker")
+	}
+	if state.Turn != before {
+		t.Errorf("Turn = %d after opening a picker, want %d unchanged", state.Turn, before)
+	}
+
+	// Cancelling it does not either.
+	if _, err := handleKey(state, "Escape"); err != nil {
+		t.Fatalf("handleKey(\"Escape\"): %v", err)
+	}
+	if state.PendingSelection != nil {
+		t.Error("expected Escape to cancel the picker")
+	}
+	if state.Turn != before {
+		t.Errorf("Turn = %d after cancelling a picker, want %d unchanged", state.Turn, before)
 	}
 }
