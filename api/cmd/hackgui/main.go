@@ -1,16 +1,14 @@
 // Command hackgui is the graphical client: it draws frames and sends
 // keypresses. It contains no game logic of any kind.
 //
-// Everything it knows about the game arrives through game.Game's four
-// methods, and everything it draws arrives as a grid of characters it cannot
-// interpret. It cannot tell a wall from a monster, does not know what an
-// item is, and has no way to find out — which is the point. Fog of war,
-// hidden doors and the level itself are all decided on the other side of
-// that interface.
+// Everything it knows about the game arrives over HTTP, and everything it
+// draws arrives as a grid of characters it cannot interpret. It cannot tell a
+// wall from a monster, does not know what an item is, and has no way to find
+// out — which is the point. Fog of war, hidden doors and the level itself are
+// all decided on the far side of the connection.
 //
-// Today that interface is an in-process call. It becomes an HTTP request
-// without this file's structure changing, because the methods were shaped
-// for that from the start.
+// It links no game code at all; a test in package httpclient asserts that of
+// every client package.
 package main
 
 import (
@@ -18,9 +16,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
-	"map_api/game"
-	"map_api/mapgen"
+	"map_api/httpclient"
 	"map_api/render"
 	"map_api/screen"
 
@@ -34,33 +32,29 @@ import (
 )
 
 func main() {
-	cfg := mapgen.DefaultConfig()
-
-	flag.IntVar(&cfg.Width, "width", cfg.Width, "map width in tiles")
-	flag.IntVar(&cfg.Height, "height", cfg.Height, "map height in tiles")
-	flag.IntVar(&cfg.NumRooms, "rooms", cfg.NumRooms, "number of rooms to place")
-	flag.IntVar(&cfg.MinRoomSize, "min-room", cfg.MinRoomSize, "minimum room interior size")
-	flag.IntVar(&cfg.MaxRoomSize, "max-room", cfg.MaxRoomSize, "maximum room interior size")
-	flag.Float64Var(&cfg.DarkRoomPercent, "dark-percent", cfg.DarkRoomPercent, "percent of rooms that are dark")
-	flag.Float64Var(&cfg.HiddenDoorPercent, "hidden-door-percent", cfg.HiddenDoorPercent, "percent of doors that are hidden")
-	flag.Float64Var(&cfg.ExtraCorridorPercent, "extra-corridor-percent", cfg.ExtraCorridorPercent, "extra loop corridors, as a percent of room count")
-	flag.Int64Var(&cfg.Seed, "seed", cfg.Seed, "RNG seed (0 = random)")
+	// Only presentation and connection settings live here. Dungeon geometry is
+	// the server's policy and the two cheat switches are its flags, so this
+	// client has no way to ask for either — see PROTOCOL.md.
+	url := flag.String("url", "http://localhost:8080", "server address")
+	seed := flag.Int64("seed", 0, "seed for a reproducible opening state (0 = let the server choose)")
 	cellSize := flag.Int("cell-size", 16, "pixel size of each tile")
-	revealHidden := flag.Bool("reveal-hidden", false, "cheat: show hidden doors distinctly instead of disguising them as walls")
-	showFullMap := flag.Bool("show-full-map", false, "cheat: ignore fog of war and draw the entire generated level")
+	wait := flag.Duration("wait", 5*time.Second, "how long to wait for the server to come up")
 	flag.Parse()
 
-	g, err := game.NewGame(cfg, *revealHidden, *showFullMap)
-	if err != nil {
+	c := httpclient.New(*url)
+	// The editor's compound launch starts client and server together, so the
+	// first request routinely loses the race.
+	if err := c.WaitForServer(*wait); err != nil {
 		fmt.Fprintln(os.Stderr, "hackgui:", err)
+		fmt.Fprintln(os.Stderr, "hackgui: is the server running? try: go run ./cmd/mapd")
 		os.Exit(1)
 	}
 
 	// paint decodes a frame into the paintable grid. Decoding is the client's
 	// half of the contract and shares no types with the server's encoder, so
 	// a frame that cannot be decoded is a protocol error, not a game error.
-	paint := func(f game.Frame) screen.Grid {
-		grid, err := screen.Decode(f.Width, f.Height, f.Rows, f.Colors, f.Palette)
+	paint := func(f httpclient.Frame) screen.Grid {
+		grid, err := f.Decode()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "hackgui:", err)
 			os.Exit(1)
@@ -68,7 +62,7 @@ func main() {
 		return grid
 	}
 
-	initial, err := g.Frame()
+	initial, err := c.NewGame(seed)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hackgui:", err)
 		os.Exit(1)
@@ -90,7 +84,7 @@ func main() {
 	// draw shows a frame the server has already produced. Unlike the
 	// pre-split redraw, it never recomputes anything: what to draw was
 	// decided before the frame was sent.
-	draw := func(f game.Frame) {
+	draw := func(f httpclient.Frame) {
 		canvasImg.Image = render.Image(paint(f), *cellSize)
 		canvasImg.Refresh()
 		hudBar.SetText(strings.Join(f.HUD, "   "))
@@ -99,7 +93,7 @@ func main() {
 	// refresh asks for the current frame, for cases where the client has no
 	// frame in hand (startup, or after an error).
 	refresh := func() {
-		f, err := g.Frame()
+		f, err := c.Frame()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "hackgui:", err)
 			return
@@ -139,7 +133,7 @@ func main() {
 	// through dispatch. The client does not know which views exist beyond
 	// the name it asks for, and does not compose their titles.
 	showView := func(name string) {
-		v, err := g.View(name)
+		v, err := c.View(name)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "hackgui:", err)
 			return
@@ -149,7 +143,7 @@ func main() {
 
 	dispatch := func(key, label string) {
 		text := fmt.Sprintf("Last key: %s", label)
-		resp, err := g.Command(key)
+		resp, err := c.Command(key)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "hackgui:", err)
 			statusBar.SetText(text)

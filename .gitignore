@@ -5,6 +5,19 @@
 /bin/
 *.test
 
+# `go build ./cmd/foo` with no -o drops the binary in the working directory
+# under the command's own name. Ignore those by name rather than trying to
+# guess: one of them got committed once.
+/api/hack
+/api/hackgui
+/api/hackterm
+/api/mapd
+/api/mapdump
+/server/mapd
+/server/mapdump
+/client/hackgui
+/client/hackterm
+
 # go.work itself IS committed — it is this repo's dev setup, not a local
 # override (see PROTOCOL.md / the VS Code notes). Its checksum file is
 # generated, so it is not.
