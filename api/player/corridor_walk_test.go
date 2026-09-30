@@ -22,6 +22,10 @@ import (
 // can no longer happen — this test is kept as a general regression guard
 // for corridor walkability.
 func TestActionCanWalkEveryGeneratedCorridor(t *testing.T) {
+	if testing.Short() {
+		t.Skip("seed sweep")
+	}
+
 	keyFor := func(dx, dy int) string {
 		switch {
 		case dx == 1:

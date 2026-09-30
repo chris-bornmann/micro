@@ -22,7 +22,8 @@
       "Bash(echo \"exit: $?\")",
       "Bash(git check-ignore *)",
       "Bash(git rm *)",
-      "Bash(echo \"--- exit: $? \\(empty above = all green\\) ---\")"
+      "Bash(echo \"--- exit: $? \\(empty above = all green\\) ---\")",
+      "Bash(git mv *)"
     ],
     "additionalDirectories": [
       "/private/tmp",

@@ -1,4 +1,4 @@
-package mapdata_test
+package mapgen_test
 
 import (
 	"math/rand"
@@ -9,13 +9,28 @@ import (
 )
 
 // TestNextStepForwardLegalityAcrossGeneratedMaps stress-tests the same
-// invariant TestNextStepNeverStepsThroughAWallWithSharedDoorCoordinate
-// checks by hand, but against real generated maps across many seeds and a
-// high extra-corridor rate (more corridors sharing/crossing geometry, so
-// more chances to hit the same class of bug): every step NextStep returns
-// must be independently confirmed legal via CanMove from the exact
-// starting point.
+// invariant mapdata's own
+// TestNextStepNeverStepsThroughAWallWithSharedDoorCoordinate checks by
+// hand, but against real generated maps across many seeds and a high
+// extra-corridor rate (more corridors sharing/crossing geometry, so more
+// chances to hit the same class of bug): every step NextStep returns must
+// be independently confirmed legal via CanMove from the exact starting
+// point.
+//
+// It lives here rather than beside the hand-built version in mapdata
+// because it is really a mapgen x mapdata integration test: the bug class
+// it guards only arises from geometry a generator produces. Keeping it in
+// mapdata would mean mapdata's own tests depend on mapgen, which inverts
+// the dependency — mapgen is built on mapdata — and would stop mapdata
+// being a leaf package.
+//
+// This is also the single slowest test in the suite by a wide margin
+// (~16s of a ~20s run), hence the -short skip.
 func TestNextStepForwardLegalityAcrossGeneratedMaps(t *testing.T) {
+	if testing.Short() {
+		t.Skip("seed sweep")
+	}
+
 	rng := rand.New(rand.NewSource(1))
 
 	for seed := int64(1); seed <= 25; seed++ {

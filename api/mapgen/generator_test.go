@@ -65,6 +65,10 @@ func TestGenerateRoomsAllConnected(t *testing.T) {
 // third-party rooms sitting between a corridor's two endpoints are exactly
 // the cases this guarantee has to hold up under.
 func TestGenerateCorridorsLeaveWallBuffer(t *testing.T) {
+	if testing.Short() {
+		t.Skip("seed sweep")
+	}
+
 	configs := []struct {
 		numRooms             int
 		extraCorridorPercent float64

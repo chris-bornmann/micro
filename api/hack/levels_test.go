@@ -103,6 +103,10 @@ func TestPopulateLevelNeverSpawnsAnotherMummyOnceSpawnedOnce(t *testing.T) {
 }
 
 func TestPopulateLevelGoblinCountVariesAcrossLevels(t *testing.T) {
+	if testing.Short() {
+		t.Skip("seed sweep")
+	}
+
 	counts := map[int]bool{}
 	for seed := int64(1); seed <= 40; seed++ {
 		cfg := testLevelConfig()

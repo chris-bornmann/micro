@@ -6,20 +6,14 @@ import (
 	"testing"
 
 	"map_api/mapdata"
-	"map_api/mapgen"
 	"map_api/overlay"
 )
 
 func TestGridPaintsObjectsOnTop(t *testing.T) {
-	cfg := mapgen.DefaultConfig()
-	cfg.Seed = 99
-	cfg.NumRooms = 3
-	m, err := mapgen.Generate(cfg)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-	if len(m.Rooms) == 0 {
-		t.Fatal("expected at least one room")
+	m := &mapdata.Map{
+		Width:  10,
+		Height: 10,
+		Rooms:  []mapdata.Room{{ID: 0, X: 2, Y: 2, W: 5, H: 5}},
 	}
 
 	r := m.Rooms[0]
@@ -43,12 +37,10 @@ func TestGridPaintsObjectsOnTop(t *testing.T) {
 }
 
 func TestGridSkipsOutOfBoundsObjects(t *testing.T) {
-	cfg := mapgen.DefaultConfig()
-	cfg.Seed = 7
-	cfg.NumRooms = 2
-	m, err := mapgen.Generate(cfg)
-	if err != nil {
-		t.Fatalf("Generate: %v", err)
+	m := &mapdata.Map{
+		Width:  10,
+		Height: 10,
+		Rooms:  []mapdata.Room{{ID: 0, X: 2, Y: 2, W: 5, H: 5}},
 	}
 
 	// Must not panic even though this object is well outside the map.
