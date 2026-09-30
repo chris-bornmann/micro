@@ -1,0 +1,130 @@
+{
+  // Every task sets an explicit cwd. That is not stylistic: `go test ./...`
+  // does NOT work from this directory, because the workspace root contains no
+  // module of its own —
+  //   pattern ./...: directory prefix . does not contain modules listed in go.work
+  // The module-path form (`go test micromap/server/...`) does work from the
+  // root, but a cwd keeps each task runnable by hand in a terminal too.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // Bound to Run Test Task by default: the inner loop, ~7s.
+      "label": "test: server (fast)",
+      "type": "shell",
+      "command": "go test -short -count=1 ./...",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": ["$go"]
+    },
+    {
+      // The four seed sweeps included: ~20s. Run before committing.
+      "label": "test: server (full)",
+      "type": "shell",
+      "command": "go test -count=1 ./...",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": ["$go"]
+    },
+    {
+      "label": "test: client",
+      "type": "shell",
+      "command": "go test -count=1 ./...",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": ["$go"]
+    },
+    {
+      "label": "test: all (fast)",
+      "dependsOn": ["test: server (fast)", "test: client"],
+      "dependsOrder": "parallel",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test: all (full)",
+      "dependsOn": ["test: server (full)", "test: client"],
+      "dependsOrder": "parallel",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test: game package (verbose)",
+      "type": "shell",
+      "command": "go test -count=1 -v ./internal/game/",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": ["$go"]
+    },
+    {
+      "label": "test: race (server + client)",
+      "type": "shell",
+      "command": "go test -race -count=1 ./... && cd ../client && go test -race -count=1 ./...",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": ["$go"]
+    },
+    {
+      // The only check that exercises client and server together over a
+      // socket. They share no code, so nothing else can notice them drifting.
+      "label": "smoke: end to end",
+      "type": "shell",
+      "command": "./scripts/smoke.sh",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "vet: all",
+      "type": "shell",
+      "command": "for m in server client; do (cd \"$m\" && go vet ./...) || exit 1; done",
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "build",
+      "problemMatcher": ["$go"]
+    },
+    {
+      "label": "fmt: check",
+      "type": "shell",
+      "command": "test -z \"$(gofmt -l server client)\" || { echo 'needs gofmt:'; gofmt -l server client; exit 1; }",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "tidy: all",
+      "type": "shell",
+      "command": "for m in server client; do (cd \"$m\" && go mod tidy) || exit 1; done",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      // Start the server on its own, e.g. to drive it from api.http.
+      "label": "serve",
+      "type": "shell",
+      "command": "go run ./cmd/mapd -addr :8080 -seed 1234",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": {
+        "pattern": [{ "regexp": "^$" }],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "mapd:",
+          "endsPattern": "listening on"
+        }
+      }
+    },
+    {
+      "label": "play: terminal client",
+      "type": "shell",
+      "command": "go run ./cmd/hackterm -url http://localhost:8080",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

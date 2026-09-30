@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "golang.go",
+    // Drives api.http, which plays the game without a client. Because a
+    // frame's `rows` are plain text, the dungeon is legible in the response
+    // pane.
+    "humao.rest-client"
+  ]
+}

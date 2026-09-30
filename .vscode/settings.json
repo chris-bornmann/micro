@@ -1,0 +1,31 @@
+{
+  // Open THIS folder, not server/ or client/. gopls finds go.work by walking
+  // up and treats both modules as one project, so go-to-definition,
+  // find-references and rename work across the boundary in one window. A
+  // multi-root .code-workspace would defeat that.
+  "go.useLanguageServer": true,
+  "go.testFlags": ["-count=1"],
+  // The full server suite is ~20s, dominated by four seed sweeps; -short
+  // skips them and lands around 7s.
+  "go.testTimeout": "180s",
+  "go.buildOnSave": "package",
+  "go.vetOnSave": "package",
+  // Off deliberately: even -short is too slow to run on every keystroke-save.
+  // Use Run Test Task ("test: server (fast)") instead.
+  "go.testOnSave": false,
+  "go.formatTool": "gofmt",
+  "go.coverOnSingleTest": true,
+  "gopls": {
+    "ui.semanticTokens": true,
+    "ui.codelenses": { "test": true, "run_govulncheck": false }
+  },
+  "[go]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": { "source.organizeImports": "explicit" },
+    "editor.insertSpaces": false,
+    "editor.detectIndentation": false
+  },
+  "[go.mod]": { "editor.formatOnSave": true },
+  "files.exclude": { "**/.DS_Store": true },
+  "search.exclude": { "**/go.sum": true }
+}

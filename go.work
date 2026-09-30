@@ -1,0 +1,15 @@
+go 1.26.5
+
+// Two modules, and deliberately no shared third one: the client and the
+// server have no import edge between them, so neither needs a `replace`
+// directive and each builds standalone without this file.
+//
+// This workspace exists only so that gopls treats both as one project — so
+// go-to-definition, find-references and rename work across the boundary in a
+// single editor window. It is committed because it is this repo's dev setup
+// rather than a local override; the advice to gitignore go.work applies to
+// libraries, where it would override a consumer's own workspace.
+use (
+	./client
+	./server
+)

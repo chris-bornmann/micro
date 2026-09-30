@@ -1,0 +1,84 @@
+{
+  // The compounds at the bottom are the point of this file: one F5 starts a
+  // server and a client together.
+  //
+  // They start simultaneously, so the client always loses the first race to
+  // connect. That is handled in the client (httpclient.WaitForServer retries
+  // dial failures for a few seconds) rather than here — a preLaunchTask with a
+  // background problem matcher is fragile, and would fix it only for this one
+  // way of starting the two.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "mapd (server)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/server/cmd/mapd",
+      "args": ["-addr", ":8080", "-seed", "1234"],
+      "console": "integratedTerminal"
+    },
+    {
+      // Both cheats on. They are server flags precisely so a client cannot
+      // ask for them; this is how you turn them on deliberately.
+      "name": "mapd (server, cheats on)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/server/cmd/mapd",
+      "args": ["-addr", ":8080", "-seed", "1234", "-reveal-hidden", "-show-full-map"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "hackterm (terminal client)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/client/cmd/hackterm",
+      "args": ["-url", "http://localhost:8080"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "hackgui (windowed client)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/client/cmd/hackgui",
+      "args": ["-url", "http://localhost:8080", "-cell-size", "16"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "test: game package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/server/internal/game"
+    },
+    {
+      "name": "test: httpapi package",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${workspaceFolder}/server/internal/httpapi"
+    }
+  ],
+  "compounds": [
+    {
+      // Prefer this one for actual debugging: no window to lose focus, and
+      // delve steps through it quickly.
+      "name": "Server + terminal client",
+      "configurations": ["mapd (server)", "hackterm (terminal client)"],
+      "stopAll": true
+    },
+    {
+      "name": "Server + windowed client",
+      "configurations": ["mapd (server)", "hackgui (windowed client)"],
+      "stopAll": true
+    },
+    {
+      "name": "Server (cheats) + windowed client",
+      "configurations": ["mapd (server, cheats on)", "hackgui (windowed client)"],
+      "stopAll": true
+    }
+  ]
+}
