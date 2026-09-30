@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ps -o pid,state,command -p 28897)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('/Users/cbb/dev/micro/map/api/.claude/settings.local.json'\\)\\); print\\('valid json'\\)\")",
+      "Bash(gofmt -l /Users/cbb/dev/micro/map/api)",
+      "Bash(gofmt -w /Users/cbb/dev/micro/map/api/player/player_test.go)",
+      "Bash(gofmt -l .)",
+      "Bash(gofmt -w /Users/cbb/dev/micro/map/api/hack/visibility_test.go)",
+      "Bash(gofmt -w mapgen/*.go player/*.go goblin/*.go)",
+      "Bash(perl -pi -e 's/mapgen\\\\.Map/mapdata.Map/g; s/mapgen\\\\.Point/mapdata.Point/g; s/mapgen\\\\.Corridor/mapdata.Corridor/g' hack/visibility.go)",
+      "Bash(perl -pi -e 's/mapgen\\\\./mapdata./g if !/map_api\\\\/mapgen/' hack/visibility_test.go)",
+      "Bash(jobs)",
+      "Bash(wait)",
+      "Bash(echo \"exit status: $?\")",
+      "Bash(python3 -)",
+      "Bash(head -20 /tmp/hack_verify_out.log; rm -f /tmp/hack_verify /tmp/hack_verify_out.log)",
+      "Bash(find /Users/cbb/go/pkg/mod/golang.org/x/image@v0.24.0/font -maxdepth 2 -type d)",
+      "Read(//Users/cbb/go/pkg/mod/golang.org/x/image@v0.24.0/font/**)",
+      "Bash(echo \"exit: $?\")"
+    ],
+    "additionalDirectories": [
+      "/private/tmp",
+      "/Users/cbb/dev/micro/map"
+    ]
+  }
+}

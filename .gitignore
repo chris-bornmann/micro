@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# Build output
+/bin/
+*.test
+
+# go.work itself IS committed — it is this repo's dev setup, not a local
+# override (see PROTOCOL.md / the VS Code notes). Its checksum file is
+# generated, so it is not.
+go.work.sum
