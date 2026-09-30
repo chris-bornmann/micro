@@ -11,7 +11,7 @@ import (
 	"math/rand"
 	"time"
 
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/mapdata"
 )
 
 // roomPadding is the minimum gap (in tiles) enforced between room bounding

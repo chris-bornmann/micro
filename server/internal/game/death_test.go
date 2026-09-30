@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/item"
+	"micro/server/internal/item"
 )
 
 // testMonster mirrors goblin.monster's JSON shape closely enough for

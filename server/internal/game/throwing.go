@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/player"
-	"micromap/server/internal/world"
+	"micro/server/internal/action"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/player"
+	"micro/server/internal/world"
 )
 
 // throwCandidates returns every plain Inventory entry, plus the

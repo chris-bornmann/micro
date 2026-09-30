@@ -3,8 +3,8 @@
 package world
 
 import (
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 // AugmentedMap is a generated level plus everything currently on it —

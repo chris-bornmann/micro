@@ -4,7 +4,7 @@
 // action.RollDamage or item's helpers.
 package vision
 
-import "micromap/server/internal/mapdata"
+import "micro/server/internal/mapdata"
 
 // DarkRadius is how far a viewer can see with no light source. A future
 // torch changes only this number (or takes it as a parameter) — nothing

@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 func TestBuildPaintsObjectsOnTop(t *testing.T) {

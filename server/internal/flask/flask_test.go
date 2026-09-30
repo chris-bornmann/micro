@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"testing"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
 )
 
 func testMap() mapdata.Map {

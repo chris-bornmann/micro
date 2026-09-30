@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/item"
+	"micro/server/internal/overlay"
 )
 
 // invSelfJSON marshals a person with the given position/HP/Inventory, for

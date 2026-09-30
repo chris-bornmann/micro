@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"sort"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 // terrainDimFactor scales down every fixed/terrain glyph's color (wall,

@@ -8,9 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/item"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/action"
+	"micro/server/internal/item"
+	"micro/server/internal/overlay"
 )
 
 // playerObject decodes just the generic overlay.Object subset out of the

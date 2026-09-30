@@ -3,8 +3,8 @@ package slide
 import (
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 // openRoomMap is a single large room with no obstructions — every one of

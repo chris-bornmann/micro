@@ -3,9 +3,9 @@ package game
 import (
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/vision"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/vision"
 )
 
 // visTestMap: two rooms connected by one corridor, plus an unrelated third

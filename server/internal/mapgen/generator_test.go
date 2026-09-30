@@ -3,7 +3,7 @@ package mapgen
 import (
 	"testing"
 
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/mapdata"
 )
 
 // TestGenerateRoomsAllConnected verifies the room graph produced by Generate

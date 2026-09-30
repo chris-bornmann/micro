@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/armor"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/armor"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
 )
 
 // armorAt is torchAt/scrollAt's counterpart for armor, built via

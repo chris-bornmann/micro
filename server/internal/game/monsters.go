@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"math/rand"
 
-	"micromap/server/internal/goblin"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mummy"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/weapon"
+	"micro/server/internal/goblin"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mummy"
+	"micro/server/internal/overlay"
+	"micro/server/internal/weapon"
 )
 
 // MonsterState is one live-or-dead monster's own opaque state plus

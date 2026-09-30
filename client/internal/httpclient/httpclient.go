@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"micromap/client/internal/screen"
+	"micro/client/internal/screen"
 )
 
 // Frame is one screen's worth of state. See PROTOCOL.md.

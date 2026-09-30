@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/player"
+	"micro/server/internal/player"
 )
 
 // The tests here are the ones that matter most for the client/server split:

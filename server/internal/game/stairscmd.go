@@ -5,9 +5,9 @@ package game
 import (
 	"fmt"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/stairs"
+	"micro/server/internal/item"
+	"micro/server/internal/overlay"
+	"micro/server/internal/stairs"
 )
 
 // applyStairs is the "<"/">" key's handler: if the Player is standing on

@@ -4,8 +4,8 @@ import (
 	"math/rand"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
 )
 
 // TestNextStepForwardLegalityAcrossGeneratedMaps stress-tests the same

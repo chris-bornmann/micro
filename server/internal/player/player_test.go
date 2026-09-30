@@ -5,13 +5,13 @@ import (
 	"regexp"
 	"testing"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/world"
+	"micro/server/internal/action"
+	"micro/server/internal/attributes"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
+	"micro/server/internal/overlay"
+	"micro/server/internal/world"
 )
 
 // testMap is a small, hand-built map (rather than a randomly generated one)

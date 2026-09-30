@@ -5,12 +5,12 @@ import (
 	"regexp"
 	"testing"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/world"
+	"micro/server/internal/action"
+	"micro/server/internal/attributes"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/world"
 )
 
 // testMap: one 10x10 room (interior x:5-14, y:5-14) big enough for chase

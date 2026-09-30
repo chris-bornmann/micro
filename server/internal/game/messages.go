@@ -5,8 +5,8 @@ package game
 import (
 	"fmt"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/item"
+	"micro/server/internal/action"
+	"micro/server/internal/item"
 )
 
 // defendMessage returns a short status string for a monster's Defend

@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"os"
 
-	"micromap/server/internal/mapgen"
+	"micro/server/internal/mapgen"
 )
 
 func main() {

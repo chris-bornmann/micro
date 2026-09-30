@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/client/internal/httpclient"
+	"micro/client/internal/httpclient"
 )
 
 // sampleFrame is a small frame in the wire form PROTOCOL.md describes.

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/flask"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/potion"
-	"micromap/server/internal/weapon"
+	"micro/server/internal/attributes"
+	"micro/server/internal/flask"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/potion"
+	"micro/server/internal/weapon"
 )
 
 // testPerson/testMonster mirror player.person/goblin.monster's JSON

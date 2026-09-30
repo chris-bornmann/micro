@@ -18,9 +18,9 @@ import (
 	"os"
 	"time"
 
-	"micromap/server/internal/game"
-	"micromap/server/internal/httpapi"
-	"micromap/server/internal/mapgen"
+	"micro/server/internal/game"
+	"micro/server/internal/httpapi"
+	"micro/server/internal/mapgen"
 )
 
 func main() {

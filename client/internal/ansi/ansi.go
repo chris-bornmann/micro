@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"micromap/client/internal/screen"
+	"micro/client/internal/screen"
 )
 
 // Render draws g as one string of ANSI-colored rows, newline-terminated,

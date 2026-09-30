@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
-	"micromap/server/internal/stairs"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
+	"micro/server/internal/stairs"
 )
 
 // stairsAt builds a real stairs item (via stairs.InitUp/InitDown, so its

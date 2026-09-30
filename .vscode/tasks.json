@@ -3,7 +3,7 @@
   // does NOT work from this directory, because the workspace root contains no
   // module of its own —
   //   pattern ./...: directory prefix . does not contain modules listed in go.work
-  // The module-path form (`go test micromap/server/...`) does work from the
+  // The module-path form (`go test micro/server/...`) does work from the
   // root, but a cwd keeps each task runnable by hand in a terminal too.
   "version": "2.0.0",
   "tasks": [

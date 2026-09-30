@@ -4,7 +4,7 @@
 // slide.
 package fire
 
-import "micromap/server/internal/action"
+import "micro/server/internal/action"
 
 // TickDamage returns how much damage burning deals on a single turn.
 // Every intelligent agent takes the same range for now — a future

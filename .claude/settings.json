@@ -26,8 +26,7 @@
       "Bash(git mv *)"
     ],
     "additionalDirectories": [
-      "/private/tmp",
-      "/Users/cbb/dev/micro/map"
+      "/private/tmp"
     ]
   }
 }

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/status"
+	"micro/server/internal/attributes"
+	"micro/server/internal/overlay"
+	"micro/server/internal/status"
 )
 
 func decodeStatus(t *testing.T, raw []byte) []status.Field {

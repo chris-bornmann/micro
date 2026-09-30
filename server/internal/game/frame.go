@@ -13,10 +13,10 @@ package game
 import (
 	"fmt"
 
-	"micromap/server/internal/grid"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/vision"
+	"micro/server/internal/grid"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/vision"
 )
 
 // Frame is one screen's worth of state, as sent to a client.

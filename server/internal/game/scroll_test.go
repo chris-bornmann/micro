@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/scroll"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/scroll"
 )
 
 // scrollAt is torchAt's counterpart for a scroll, built via

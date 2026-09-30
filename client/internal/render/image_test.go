@@ -5,7 +5,7 @@ import (
 	"image/color"
 	"testing"
 
-	"micromap/client/internal/screen"
+	"micro/client/internal/screen"
 )
 
 // gridOf builds a screen.Grid of the given size filled with blanks, then

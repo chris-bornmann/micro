@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/game"
-	"micromap/server/internal/mapgen"
+	"micro/server/internal/game"
+	"micro/server/internal/mapgen"
 )
 
 // testConfig is a small, fast level with enough rooms that fog of war has

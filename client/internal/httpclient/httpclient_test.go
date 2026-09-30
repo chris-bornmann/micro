@@ -300,16 +300,16 @@ func TestWaitForServerGivesUpOnADeadPort(t *testing.T) {
 // internal/, the compiler already refuses this — the assertion here is a
 // second line of defence, and a check that no one has "solved" a future
 // problem by adding a require directive. It forbids the whole
-// micromap/server prefix rather than a list of package names, so it keeps
+// micro/server prefix rather than a list of package names, so it keeps
 // working for packages that do not exist yet.
 func TestTheClientImportsNoServerCode(t *testing.T) {
 	clientPackages := []string{
-		"micromap/client/internal/httpclient",
-		"micromap/client/internal/screen",
-		"micromap/client/internal/ansi",
-		"micromap/client/internal/render",
-		"micromap/client/cmd/hackgui",
-		"micromap/client/cmd/hackterm",
+		"micro/client/internal/httpclient",
+		"micro/client/internal/screen",
+		"micro/client/internal/ansi",
+		"micro/client/internal/render",
+		"micro/client/cmd/hackgui",
+		"micro/client/cmd/hackterm",
 	}
 
 	for _, pkg := range clientPackages {
@@ -319,7 +319,7 @@ func TestTheClientImportsNoServerCode(t *testing.T) {
 		}
 		for _, line := range strings.Split(string(out), "\n") {
 			dep := strings.TrimSpace(line)
-			if strings.HasPrefix(dep, "micromap/server") {
+			if strings.HasPrefix(dep, "micro/server") {
 				t.Errorf("%s depends on %s; the client must share no server code", pkg, dep)
 			}
 		}
@@ -333,7 +333,7 @@ func TestTheClientModuleRequiresNoServerModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read go.mod: %v", err)
 	}
-	if strings.Contains(string(data), "micromap/server") {
-		t.Error("client/go.mod mentions micromap/server; the two modules must stay independent")
+	if strings.Contains(string(data), "micro/server") {
+		t.Error("client/go.mod mentions micro/server; the two modules must stay independent")
 	}
 }

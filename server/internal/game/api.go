@@ -13,10 +13,10 @@ import (
 	"math/rand"
 	"sync"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapgen"
-	"micromap/server/internal/player"
-	"micromap/server/internal/vision"
+	"micro/server/internal/item"
+	"micro/server/internal/mapgen"
+	"micro/server/internal/player"
+	"micro/server/internal/vision"
 )
 
 // Game is one playthrough: the coordinator's state plus the server-side

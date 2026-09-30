@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/item"
+	"micro/server/internal/overlay"
 )
 
 // testArmorItemJSON marshals a minimal item.Item with CategoryArmor and

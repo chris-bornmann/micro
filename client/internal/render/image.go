@@ -17,7 +17,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
-	"micromap/client/internal/screen"
+	"micro/client/internal/screen"
 )
 
 // glyphFont is the embedded Go Mono TTF every cell's glyph is drawn

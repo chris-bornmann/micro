@@ -9,7 +9,7 @@ package action
 import (
 	"math/rand"
 
-	"micromap/server/internal/attributes"
+	"micro/server/internal/attributes"
 )
 
 // Result describes what an Action call actually did this turn.

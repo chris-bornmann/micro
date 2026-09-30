@@ -6,7 +6,7 @@
 // embeds Item the same way player/goblin embed overlay.Object.
 package item
 
-import "micromap/server/internal/overlay"
+import "micro/server/internal/overlay"
 
 // Category identifies which item-category service owns an item — the
 // would-be microservice name. The coordinator and any other neutral code

@@ -22,3 +22,5 @@
 # override (see PROTOCOL.md / the VS Code notes). Its checksum file is
 # generated, so it is not.
 go.work.sum
+
+ideas.txt

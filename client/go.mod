@@ -1,4 +1,4 @@
-module micromap/client
+module micro/client
 
 go 1.26.5
 

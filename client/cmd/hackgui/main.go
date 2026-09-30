@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"micromap/client/internal/httpclient"
-	"micromap/client/internal/render"
-	"micromap/client/internal/screen"
+	"micro/client/internal/httpclient"
+	"micro/client/internal/render"
+	"micro/client/internal/screen"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"

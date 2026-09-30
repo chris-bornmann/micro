@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/torch"
-	"micromap/server/internal/vision"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/torch"
+	"micro/server/internal/vision"
 )
 
 // torchAt is potionAt/weaponAt's counterpart for a torch, built via

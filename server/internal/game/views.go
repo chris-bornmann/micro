@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"micromap/server/internal/player"
-	"micromap/server/internal/status"
+	"micro/server/internal/player"
+	"micro/server/internal/status"
 )
 
 // pickerLines formats candidates as "A) name" lines using

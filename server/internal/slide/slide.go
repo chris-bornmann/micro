@@ -7,8 +7,8 @@ package slide
 import (
 	"math/rand"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 // Resolve computes where an agent ends up after choosing to step onto

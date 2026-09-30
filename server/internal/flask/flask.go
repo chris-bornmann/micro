@@ -12,9 +12,9 @@ import (
 	"math/rand"
 	"sync/atomic"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 var nextID int64

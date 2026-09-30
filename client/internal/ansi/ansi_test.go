@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/client/internal/screen"
+	"micro/client/internal/screen"
 )
 
 func gridOf(w, h int, edits ...func(screen.Grid)) screen.Grid {

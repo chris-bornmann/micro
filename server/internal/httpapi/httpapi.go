@@ -29,7 +29,7 @@ import (
 	"strings"
 	"sync"
 
-	"micromap/server/internal/game"
+	"micro/server/internal/game"
 )
 
 // NewGameFunc creates a game, optionally with a caller-supplied seed. The

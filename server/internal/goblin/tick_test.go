@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/overlay"
+	"micro/server/internal/overlay"
 )
 
 func TestTickConsumesGraceTurnWithoutDamageOrDecrementing(t *testing.T) {

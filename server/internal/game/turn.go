@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/player"
-	"micromap/server/internal/stairs"
-	"micromap/server/internal/vision"
-	"micromap/server/internal/world"
+	"micro/server/internal/overlay"
+	"micro/server/internal/player"
+	"micro/server/internal/stairs"
+	"micro/server/internal/vision"
+	"micro/server/internal/world"
 )
 
 // handleKey is handleKeyMessages with this turn's messages joined into one

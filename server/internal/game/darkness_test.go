@@ -3,9 +3,9 @@ package game
 import (
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/vision"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/vision"
 )
 
 // darkTestMap: a Dark room (interior x:5-9, y:5-9) with a corridor exiting

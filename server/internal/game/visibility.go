@@ -1,8 +1,8 @@
 package game
 
 import (
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
 )
 
 // offMap is used as a sentinel door position to suppress rendering a door

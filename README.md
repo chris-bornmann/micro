@@ -1,11 +1,11 @@
-# micro/map
+# micro
 
 A roguelike, split into a server that owns the game and a client that draws it.
 
 ```
 go.work              two modules, no shared third one
-server/              the game: HTTP API + all logic          (module micromap/server)
-client/              display and input                        (module micromap/client)
+server/              the game: HTTP API + all logic          (module micro/server)
+client/              display and input                        (module micro/client)
 PROTOCOL.md          the contract between them
 api.http             play the game with no client at all
 scripts/smoke.sh     end-to-end check: real server, real client, real socket
@@ -38,7 +38,7 @@ cd client && go test ./...           # ~2.5s
 ```
 
 `go test ./...` does **not** work from this directory: the workspace root holds
-no module of its own. Use a module path (`go test micromap/server/...`) or `cd`
+no module of its own. Use a module path (`go test micro/server/...`) or `cd`
 into one. Every VS Code task sets an explicit `cwd` for this reason.
 
 ## The two rules
@@ -60,7 +60,7 @@ Both rules are enforced rather than trusted. `server/go.mod` has no
 dependencies at all (every fyne and x/image dependency is the client's), every
 server package sits under `internal/`, and a test in
 `client/internal/httpclient` fails if any client package acquires a
-`micromap/server` dependency.
+`micro/server` dependency.
 
 ## Cheats
 

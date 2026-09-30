@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/world"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
+	"micro/server/internal/overlay"
+	"micro/server/internal/world"
 )
 
 // TestActionCanWalkEveryGeneratedCorridor programmatically walks the full

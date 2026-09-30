@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"micromap/client/internal/ansi"
-	"micromap/client/internal/httpclient"
+	"micro/client/internal/ansi"
+	"micro/client/internal/httpclient"
 )
 
 // keyFor translates what a person types into a protocol key name. The long

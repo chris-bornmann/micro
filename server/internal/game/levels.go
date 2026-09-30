@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"math/rand"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
-	"micromap/server/internal/stairs"
-	"micromap/server/internal/vision"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
+	"micro/server/internal/stairs"
+	"micro/server/internal/vision"
 )
 
 // maxLevels is the deepest a Player can go — level maxLevels has stairs

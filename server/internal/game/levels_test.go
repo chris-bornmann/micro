@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/item"
-	"micromap/server/internal/stairs"
+	"micro/server/internal/item"
+	"micro/server/internal/stairs"
 )
 
 func TestPopulateLevelSpawnsExpectedItemsAndStairs(t *testing.T) {

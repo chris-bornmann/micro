@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"micromap/server/internal/overlay"
+	"micro/server/internal/overlay"
 )
 
 // TestItemMarshalsEmbeddedObjectFieldsFlat pins the deliberate choice to

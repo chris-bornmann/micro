@@ -16,16 +16,16 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"micromap/server/internal/action"
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/fire"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/slide"
-	spawnmodel "micromap/server/internal/spawn"
-	"micromap/server/internal/status"
-	"micromap/server/internal/world"
+	"micro/server/internal/action"
+	"micro/server/internal/attributes"
+	"micro/server/internal/fire"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/slide"
+	spawnmodel "micro/server/internal/spawn"
+	"micro/server/internal/status"
+	"micro/server/internal/world"
 )
 
 var nextID int64

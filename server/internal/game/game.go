@@ -5,8 +5,8 @@ package game
 import (
 	"encoding/json"
 
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/mapgen"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/mapgen"
 )
 
 // GameState is the coordinator's central state: the Player, who persists

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"micromap/server/internal/attributes"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/attributes"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
 )
 
 func TestThrowItemReportsNothingToThrowWhenInventoryIsEmpty(t *testing.T) {

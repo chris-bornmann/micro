@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"math/rand"
 
-	"micromap/server/internal/armor"
-	"micromap/server/internal/item"
-	"micromap/server/internal/mapdata"
-	"micromap/server/internal/overlay"
-	"micromap/server/internal/player"
-	"micromap/server/internal/potion"
-	"micromap/server/internal/scroll"
-	"micromap/server/internal/torch"
-	"micromap/server/internal/weapon"
+	"micro/server/internal/armor"
+	"micro/server/internal/item"
+	"micro/server/internal/mapdata"
+	"micro/server/internal/overlay"
+	"micro/server/internal/player"
+	"micro/server/internal/potion"
+	"micro/server/internal/scroll"
+	"micro/server/internal/torch"
+	"micro/server/internal/weapon"
 )
 
 // relocateItem returns raw (an item's own JSON) with its generic X/Y

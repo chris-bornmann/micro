@@ -3,7 +3,7 @@ package vision
 import (
 	"testing"
 
-	"micromap/server/internal/mapdata"
+	"micro/server/internal/mapdata"
 )
 
 // visionTestMap: one Dark room (interior x:5-9, y:5-9) with a corridor
