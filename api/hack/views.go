@@ -132,6 +132,22 @@ func statusLines(fieldsJSON []byte) ([]string, error) {
 	return lines, nil
 }
 
+// hudLines is the Player's own status as the always-visible strip on the
+// game screen, as opposed to statusLines' modal "S" view of the same data.
+// Same source, same formatting, no turn cost — the difference is only where
+// a client chooses to put it.
+//
+// It exists because a roguelike player needs HP on screen permanently, and
+// because sending it pre-formatted keeps the client from having to know what
+// any of these fields mean.
+func hudLines(state *GameState) ([]string, error) {
+	fieldsJSON, err := player.Status(state.PlayerState)
+	if err != nil {
+		return nil, fmt.Errorf("player status: %w", err)
+	}
+	return statusLines(fieldsJSON)
+}
+
 // helpLines lists every player-visible command with a short description,
 // for the "?" key's read-only view — kept in sync with handleKey's switch
 // (below), player.Action's key cases, and the SetOnTypedKey/SetOnTypedRune

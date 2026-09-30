@@ -11,11 +11,10 @@ import (
 	"strings"
 
 	"map_api/item"
-	"map_api/mapdata"
 	"map_api/mapgen"
-	"map_api/overlay"
 	"map_api/player"
 	"map_api/render"
+	"map_api/screen"
 	"map_api/vision"
 
 	"fyne.io/fyne/v2"
@@ -99,61 +98,42 @@ func main() {
 	initialLitTiles, _, _ := vision.CurrentlyLit(*state.Map, p.X, p.Y, p.Lit)
 	state.Visited.rememberLitTiles(initialLitTiles)
 
-	// currentlyVisibleTiles computes vision.CurrentlyVisible fresh from the
-	// Player's current position — the CURRENT-frame visible set, used only
-	// to decide which movable objects (monsters/items) are visible right
-	// now. Distinct from state.Visited.rememberedTiles(), the PERMANENT
-	// floor/wall-shape memory used for LitTiles below — a movable object
-	// on a tile you remember but aren't currently in view of must stay
-	// hidden even though the floor there keeps rendering.
-	currentlyVisibleTiles := func() []mapdata.Point {
-		p, err := playerObject(state.PlayerState)
+	// turn counts consumed turns, for Frame.Turn. Once the split lands this
+	// is the server's own counter; here it stands in for it.
+	turn := 0
+
+	// frameNow builds the current frame and decodes it into the paintable
+	// grid a client would receive.
+	//
+	// The encode/decode round trip is deliberate even though both halves are
+	// in one process today: it is exactly the eventual network path, so
+	// running it now means the serialization is exercised by every keystroke
+	// of ordinary play rather than only by tests. buildFrame is the server
+	// half and screen.Decode the client half, and they already share no
+	// types.
+	frameNow := func() screen.Grid {
+		f, err := buildFrame(state, turn, *revealHidden, *showFullMap)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "hack:", err)
 			os.Exit(1)
 		}
-		return vision.CurrentlyVisible(*state.Map, p.X, p.Y, p.Lit)
+		g, err := screen.Decode(f.Width, f.Height, f.Rows, f.Colors, f.Palette)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "hack:", err)
+			os.Exit(1)
+		}
+		return g
 	}
 
-	mapToRender := func() *mapdata.Map {
-		if *showFullMap {
-			return state.Map
-		}
-		return state.Visited.visibleMap(state.Map)
+	initialFrame, err := buildFrame(state, turn, *revealHidden, *showFullMap)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "hack:", err)
+		os.Exit(1)
 	}
-	objectsToRender := func() []overlay.Object {
-		p, err := playerObject(state.PlayerState)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "hack:", err)
-			os.Exit(1)
-		}
-		liveMonsters, err := liveMonsterObjects(state)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "hack:", err)
-			os.Exit(1)
-		}
-		all := append([]overlay.Object{p}, liveMonsters...)
-		for _, raw := range state.FloorItems {
-			it, err := itemInfo(raw)
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "hack:", err)
-				os.Exit(1)
-			}
-			all = append(all, it.Object)
-		}
-		if *showFullMap {
-			return all
-		}
-		return state.Visited.filterObjects(state.Map, all, currentlyVisibleTiles())
-	}
-	renderOptions := func() render.Options {
-		return render.Options{RevealHidden: *revealHidden, Objects: objectsToRender(), LitTiles: state.Visited.rememberedTiles()}
-	}
-
-	img := render.Image(mapToRender(), renderOptions(), *cellSize)
+	img := render.Image(frameNow(), *cellSize)
 
 	a := app.NewWithID("com.map_api.hack")
-	w := a.NewWindow(fmt.Sprintf("Hack — seed %d, %d rooms", state.Map.Seed, len(state.Map.Rooms)))
+	w := a.NewWindow(initialFrame.Title)
 
 	canvasImg := canvas.NewImageFromImage(img)
 	canvasImg.ScaleMode = canvas.ImageScalePixels
@@ -164,7 +144,7 @@ func main() {
 	w.Resize(fyne.NewSize(float32(img.Bounds().Dx()), float32(img.Bounds().Dy())+40))
 
 	redraw := func() {
-		canvasImg.Image = render.Image(mapToRender(), renderOptions(), *cellSize)
+		canvasImg.Image = render.Image(frameNow(), *cellSize)
 		canvasImg.Refresh()
 	}
 

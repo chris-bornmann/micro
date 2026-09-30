@@ -1,3 +1,9 @@
+// Package render draws a decoded character grid as pixels. It is purely a
+// client-side concern: it knows about fonts, cell sizes and colors, and
+// nothing whatsoever about rooms, corridors, levels or the game.
+//
+// It is kept apart from the terminal renderer (package ansi) because it
+// embeds a scalable font, and the terminal client has no use for one.
 package render
 
 import (
@@ -11,7 +17,7 @@ import (
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
-	"map_api/mapdata"
+	"map_api/screen"
 )
 
 // glyphFont is the embedded Go Mono TTF every cell's glyph is drawn
@@ -52,23 +58,22 @@ func glyphFaceForCellSize(cellSize int) font.Face {
 	return face
 }
 
-// Image rasterizes m onto a blank Width*cellSize x Height*cellSize canvas:
-// pure black everywhere, then each cell's glyph (from the same grid() ANSI()
-// itself draws from) painted in its own color on top — walls/floors/doors/
-// corridors/objects all drawn as characters, not solid blocks, matching how
-// ANSI() already renders a terminal view of the same map.
-func Image(m *mapdata.Map, opts Options, cellSize int) *image.RGBA {
+// Image rasterizes g onto a blank Width*cellSize x Height*cellSize canvas:
+// pure black everywhere, then each cell's glyph painted in its own color on
+// top — walls/floors/doors/corridors/objects all drawn as characters, not
+// solid blocks, matching how the terminal view of the same frame renders.
+func Image(g screen.Grid, cellSize int) *image.RGBA {
 	if cellSize < 1 {
 		cellSize = 1
 	}
-	g := grid(m, opts)
 
-	img := image.NewRGBA(image.Rect(0, 0, m.Width*cellSize, m.Height*cellSize))
+	img := image.NewRGBA(image.Rect(0, 0, g.Width*cellSize, g.Height*cellSize))
 	draw.Draw(img, img.Bounds(), image.NewUniform(color.Black), image.Point{}, draw.Src)
 
-	for y, row := range g {
-		for x, c := range row {
-			drawGlyph(img, x, y, cellSize, c.ch, color.RGBA{R: c.color.R, G: c.color.G, B: c.color.B, A: 0xff})
+	for y := 0; y < g.Height; y++ {
+		for x := 0; x < g.Width; x++ {
+			c := g.At(x, y)
+			drawGlyph(img, x, y, cellSize, c.Ch, color.RGBA{R: c.R, G: c.G, B: c.B, A: 0xff})
 		}
 	}
 
