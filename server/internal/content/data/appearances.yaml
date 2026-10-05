@@ -1,0 +1,95 @@
+# Looks for unidentified items. Until its type is identified, an item
+# with unidentified: {pool: ...} (items.yaml) is shown by a look from its
+# pool, in that look's color. Each game deals the looks out afresh, so a
+# jade ring is not always the same ring. See README.md, "Unidentified
+# items".
+#
+#   format: how a look is named; "{}" becomes the look's name.
+#   color:  for any look without its own.
+#   looks:  a name, or {name: ..., color: [r, g, b]}. A pool needs at
+#           least as many looks as item types use it.
+
+ring:
+  format: "{} ring"
+  looks:
+    - {name: jade, color: [0, 168, 107]}
+    - {name: agate, color: [190, 120, 80]}
+    - {name: opal, color: [220, 230, 240]}
+    - {name: onyx, color: [70, 70, 80]}
+    - {name: garnet, color: [160, 30, 50]}
+    - {name: topaz, color: [240, 190, 60]}
+    - {name: sapphire, color: [40, 80, 200]}
+    - {name: coral, color: [250, 120, 100]}
+    - {name: ivory, color: [240, 235, 210]}
+    - {name: obsidian, color: [50, 40, 60]}
+
+potion:
+  format: "{} potion"
+  looks:
+    - {name: bubbly, color: [120, 220, 240]}
+    - {name: murky, color: [110, 100, 60]}
+    - {name: smoky, color: [150, 150, 150]}
+    - {name: fizzy, color: [230, 230, 120]}
+    - {name: cloudy, color: [210, 210, 220]}
+    - {name: glowing, color: [255, 240, 150]}
+    - {name: crimson, color: [170, 30, 45]}
+    - {name: milky, color: [245, 245, 235]}
+    - {name: golden, color: [230, 180, 40]}
+    - {name: violet, color: [140, 60, 220]}
+
+scroll:
+  format: "scroll labeled {}"
+  color: [230, 220, 180]
+  looks: [XYZZY, FOOBIE BLETCH, ELBIB YLOH, VERR YED HORRE, KIRJE, ZELGO MER, PRATYAVAYAH, JUYED AWK YACC, VENZAR BORGAVVE, THARR]
+
+amulet:
+  format: "{} amulet"
+  looks:
+    - {name: tarnished, color: [140, 110, 160]}
+    - {name: oval, color: [200, 170, 90]}
+    - {name: spiked, color: [170, 170, 180]}
+    - {name: beaded, color: [200, 90, 120]}
+    - {name: triangular, color: [120, 180, 200]}
+
+dagger:
+  format: "{} dagger"
+  color: [180, 180, 210]
+  looks: [notched, curved, slender, bone-handled, double-edged, crude]
+
+sword:
+  format: "{} sword"
+  color: [180, 180, 210]
+  looks: [pitted, broad, engraved, long, chipped]
+
+gloves:
+  format: "{} gloves"
+  color: [150, 150, 160]
+  looks: [riveted, studded, heavy, plated]
+
+shoes:
+  format: "{} shoes"
+  color: [140, 100, 70]
+  looks: [soft, worn, pointed, felt, buckled]
+
+helm:
+  format: "{} helm"
+  color: [170, 170, 185]
+  looks: [dented, plumed, horned, visored, rusted]
+
+armor:
+  format: "{} armor"
+  color: [150, 140, 120]
+  looks: [scaled, studded, quilted, ringed, banded, lacquered]
+
+shield:
+  format: "{} shield"
+  color: [160, 120, 80]
+  looks: [round, kite, painted, battered]
+
+cloak:
+  format: "{} cloak"
+  looks:
+    - {name: tattered, color: [120, 110, 100]}
+    - {name: hooded, color: [70, 90, 70]}
+    - {name: fur-lined, color: [160, 130, 100]}
+    - {name: crimson, color: [150, 30, 40]}

@@ -1,0 +1,406 @@
+# Items. See README.md for every field, trait and action.
+#
+# unidentified: {pool: ring, chance: 100} means an item may be seen only by
+# its look ("an agate ring") until its type is identified: chance is the
+# percent of games it starts unknown. The pools of looks are in
+# appearances.yaml. Without it, an item is always known (a torch).
+#
+# spawn: {model: fixed, count: N} puts N of an item on every level. Items
+# without a spawn block only appear some other way: carried by a monster,
+# left by one, or placed by the game (stairs).
+
+healing_potion:
+  category: potion
+  name: healing potion
+  glyph: "!"
+  color: [220, 20, 60]
+  weight: 1
+  use_verb: drink
+  unidentified: {pool: potion, chance: 100}
+  on_use:
+    - {action: heal, amount: [8, 15]}
+    - {action: cure, trait: poisoned, message: "The poison leaves your body."}
+  traits:
+    - {trait: fragile}
+  spawn: {model: fixed, count: 1}
+
+invisibility_potion:
+  category: potion
+  name: invisibility potion
+  glyph: "!"
+  color: [100, 20, 220]
+  weight: 1
+  use_verb: drink
+  unidentified: {pool: potion, chance: 100}
+  on_use:
+    - {action: grant, trait: invisible, turns: [10, 30], describe: turn invisible, describe_they: vanishes from sight}
+  traits:
+    - {trait: fragile}
+  spawn: {model: fixed, count: 1}
+
+fine_dagger:
+  category: weapon
+  name: fine dagger
+  glyph: ")"
+  color: [180, 180, 210]
+  weight: 3
+  slot: weapon
+  unidentified: {pool: dagger, chance: 60}   # 60% of games you won't know it on sight
+  damage: {piercing: [1, 4]}
+  traits:
+    - {trait: enchant, amount: 1}
+    - {trait: bonus_vs, kind: goblin, amount: 1}
+  messages:
+    hit:
+      - "{The attacker} stabs you with {his} {weapon} for {damage} hp of damage!"
+    miss:
+      - "{The attacker} jabs at you with {his} {weapon}, but misses!"
+    you_hit:
+      - "You stab {the defender} with your {weapon} for {damage} hp of damage!"
+      - "Your {weapon} slips between {the defender's} ribs for {damage} hp of damage."
+    you_miss:
+      - "{The defender} twists away from your {weapon}."
+  spawn: {model: fixed, count: 1}
+
+iron_gloves:
+  category: weapon
+  name: iron gloves
+  glyph: ")"
+  color: [150, 150, 160]   # iron gray
+  weight: 4
+  slot: weapon
+  unidentified: {pool: gloves, chance: 60}
+  # They cover the hands: no gauntlets or gloves while they're wielded.
+  blocks: [hands]
+  # Double a bare fist's 1-2 (player.yaml): if fists change, change this.
+  damage: {bludgeoning: [2, 4]}
+  messages:
+    hit:
+      - "{The attacker} pounds you with {his} {weapon} for {damage} hp of damage!"
+      - "An iron fist from {the attacker} slams into you for {damage} hp of damage!"
+    miss:
+      - "{The attacker} swings an iron fist at you, but misses!"
+    you_hit:
+      - "You punch {the defender} with your {weapon} for {damage} hp of damage!"
+      - "Your iron fist slams into {the defender} for {damage} hp of damage!"
+    you_miss:
+      - "Your iron fist swings wide of {the defender}."
+  spawn: {model: fixed, count: 1}
+
+poisoned_dagger:
+  category: weapon
+  name: poisoned dagger
+  glyph: ")"
+  color: [120, 200, 80]    # a sickly green edge
+  weight: 3
+  slot: weapon
+  unidentified: {pool: dagger, chance: 60}
+  damage: {piercing: [1, 4]}
+  traits:
+    # 4 a turn for 6 turns, less the victim's Stamina/5 (rounded up).
+    - {trait: poisons, damage: 4, turns: 6}
+  messages:
+    hit:
+      - "{The attacker} stabs you with {his} {weapon} for {damage} hp of damage!"
+      - "{The attacker's} {weapon} nicks you for {damage} hp of damage."
+    miss:
+      - "{The attacker} jabs at you with {his} {weapon}, but misses!"
+    you_hit:
+      - "You stab {the defender} with your {weapon} for {damage} hp of damage!"
+    you_miss:
+      - "{The defender} twists away from your {weapon}."
+  # No floor spawn: goblins carry these (see monsters.yaml).
+
+rusty_sword:
+  category: weapon
+  name: rusty sword
+  glyph: ")"
+  color: [180, 180, 210]
+  weight: 6
+  slot: weapon
+  unidentified: {pool: sword, chance: 60}   # cursed: you may wield it unawares
+  damage: {slashing: [1, 6]}
+  traits:
+    # One less damage, and once wielded it cannot be let go.
+    - {trait: cursed, damage: -1}
+  messages:
+    hit:
+      - "{The attacker} strikes you with {his} {weapon} for {damage} hp of damage!"
+      - "You are sliced by {the attacker's} {weapon} for {damage} hp of damage!"
+    miss:
+      - "{The attacker} swings {his} {weapon} at you, but misses!"
+      - "{The attacker's} {weapon} whistles past your ear."
+    you_hit:
+      - "You hack at {the defender} with your {weapon} for {damage} hp of damage!"
+      - "Your {weapon} bites into {the defender} for {damage} hp of damage."
+    you_miss:
+      - "Your {weapon} swings wide of {the defender}."
+
+torch:
+  category: torch
+  name: torch
+  glyph: /
+  color: [210, 130, 40]
+  weight: 2
+  # Wielded, a club. Lit — in either hand — it lights the way; struck with
+  # lit, its fire part becomes 1-2 and it sets what will burn alight.
+  slot: weapon
+  damage: {bludgeoning: [1, 2], fire: 0}
+  on_use:
+    # Lit where it is if wielded, else in the off hand, else the main hand;
+    # both full, it can't be lit.
+    - {action: light, turns: [6, 20]}
+  spawn: {model: fixed, count: 1}
+
+teleport_scroll:
+  category: scroll
+  name: scroll of teleportation
+  glyph: "?"
+  color: [230, 220, 180]
+  weight: 1
+  use_verb: read
+  unidentified: {pool: scroll, chance: 100}
+  on_use:
+    - {action: teleport}
+  spawn: {model: fixed, count: 1}
+
+awareness_scroll:
+  category: scroll
+  name: scroll of awareness
+  glyph: "?"
+  color: [170, 220, 255]
+  weight: 1
+  use_verb: read
+  unidentified: {pool: scroll, chance: 100}
+  on_use:
+    - {action: grant, trait: monster_vision, turns: [5, 10], describe: sense every monster on the level, describe_they: looks around knowingly}
+  spawn: {model: fixed, count: 1}
+
+summon_scroll:
+  category: scroll
+  name: scroll of summon monster
+  glyph: "?"
+  color: [220, 120, 200]
+  weight: 1
+  use_verb: read
+  unidentified: {pool: scroll, chance: 100}
+  on_use:
+    # Asks for a monster's letter: an ordinary monster comes fresh; a
+    # unique one (T, the Thief) comes from wherever he is.
+    - {action: summon}
+  spawn: {model: fixed, count: 1}
+
+knowledge_scroll:
+  category: scroll
+  name: scroll of knowledge
+  glyph: "?"
+  color: [250, 250, 200]
+  weight: 1
+  use_verb: read
+  unidentified: {pool: scroll, chance: 100}
+  on_use:
+    # Asks which of your other items to learn about, and reveals its true
+    # name — and so every item of its kind. Reading it shows what the
+    # scroll itself is, too.
+    - {action: identify}
+  spawn: {model: fixed, count: 1}
+
+ring_of_true_sight:
+  category: ring
+  name: ring of true sight
+  glyph: "="
+  color: [230, 200, 60]    # gold
+  weight: 1
+  slot: ring               # either hand; at most two rings at once
+  unidentified: {pool: ring, chance: 100}
+  traits:
+    # Hidden doors show as doors, invisible monsters as themselves.
+    - {trait: see_invisible}
+  spawn: {model: fixed, count: 1}
+
+ring_of_regeneration:
+  category: ring
+  name: ring of regeneration
+  glyph: "="
+  color: [120, 230, 120]   # green
+  weight: 1
+  slot: ring
+  unidentified: {pool: ring, chance: 100}
+  traits:
+    # Its wearer heals twice as fast — faster, even, than attributes alone
+    # ever allow.
+    - {trait: regeneration, multiplier: 2}
+  spawn: {model: fixed, count: 1}
+
+amulet_of_wasting:
+  category: amulet
+  name: amulet of wasting
+  glyph: "\""
+  color: [140, 110, 160]   # tarnished violet
+  weight: 1
+  slot: neck
+  unidentified: {pool: amulet, chance: 100}   # cursed: you may put it on unawares
+  traits:
+    # Once on, it won't come off; while it's on, its wearer doesn't heal,
+    # and loses 1 HP every 25 turns.
+    - {trait: cursed}
+    - {trait: regeneration, multiplier: 0}
+    - {trait: wasting, every: 25, amount: 1, type: poison, message: "The amulet saps your life."}
+  spawn: {model: fixed, count: 1}
+
+leather_armor:
+  category: armor
+  name: leather armor
+  glyph: "["
+  color: [150, 100, 60]
+  weight: 10
+  slot: body
+  unidentified: {pool: armor, chance: 60}
+  traits:
+    - {trait: armor, amount: 1}
+  spawn: {model: fixed, count: 1}
+
+chain_mail:
+  category: armor
+  name: chain mail
+  glyph: "["
+  color: [170, 170, 185]
+  weight: 25
+  slot: body
+  unidentified: {pool: armor, chance: 60}
+  traits:
+    - {trait: armor, amount: 2}
+    - {trait: evasion, amount: -5}    # heavy: a little easier to hit
+  spawn: {model: fixed, count: 1}
+
+cursed_mail:
+  category: armor
+  name: cursed mail
+  glyph: "["
+  color: [120, 60, 80]
+  weight: 20
+  slot: body
+  unidentified: {pool: armor, chance: 100}   # you may put it on unawares
+  traits:
+    - {trait: cursed}
+    - {trait: armor, amount: -1}      # every blow lands harder
+    - {trait: evasion, amount: -10}   # and more of them land
+  spawn: {model: fixed, count: 1}
+
+helm:
+  category: armor
+  name: helm
+  glyph: "["
+  color: [170, 170, 185]
+  weight: 5
+  slot: head
+  unidentified: {pool: helm, chance: 60}
+  traits:
+    - {trait: armor, amount: 1}
+  spawn: {model: fixed, count: 1}
+
+cursed_helm:
+  category: armor
+  name: cursed helm
+  glyph: "["
+  color: [120, 60, 80]
+  weight: 5
+  slot: head
+  unidentified: {pool: helm, chance: 100}
+  traits:
+    - {trait: cursed}
+    - {trait: evasion, amount: -5}
+  spawn: {model: fixed, count: 1}
+
+gauntlets:
+  category: armor
+  name: gauntlets
+  glyph: "["
+  color: [150, 150, 160]
+  weight: 3
+  slot: hands
+  unidentified: {pool: gloves, chance: 60}
+  traits:
+    - {trait: armor, amount: 1}
+  spawn: {model: fixed, count: 1}
+
+small_shield:
+  category: armor
+  name: small shield
+  glyph: "["
+  color: [160, 120, 80]
+  weight: 6
+  slot: off_hand
+  unidentified: {pool: shield, chance: 60}
+  traits:
+    - {trait: evasion, amount: 10}
+  spawn: {model: fixed, count: 1}
+
+cloak_of_protection:
+  category: armor
+  name: cloak of protection
+  glyph: "["
+  color: [70, 90, 140]
+  weight: 2
+  slot: cloak
+  unidentified: {pool: cloak, chance: 100}
+  traits:
+    - {trait: armor, amount: 1}
+    - {trait: evasion, amount: 5}
+  spawn: {model: fixed, count: 1}
+
+shoes_of_sneaking:
+  category: armor
+  name: shoes of sneaking
+  glyph: "["
+  color: [120, 90, 60]
+  weight: 3
+  slot: feet
+  unidentified: {pool: shoes, chance: 60}
+  traits:
+    - {trait: sneaking}
+  spawn: {model: fixed, count: 1}
+
+flask_of_oil:
+  category: flask
+  name: flask of oil
+  glyph: "!"
+  color: [40, 25, 5]
+  weight: 2
+  traits:
+    - {trait: adds_oil}
+    - {trait: spills_oil}
+    - trait: fragile
+      hit: It shatters, coating them in oil!
+      wall: It shatters against the wall!
+      floor: It shatters, spreading oil across the floor!
+  spawn: {model: fixed, count: 1}
+
+stairs_up:
+  category: stairs
+  name: stairs up
+  glyph: <
+  color: [200, 200, 200]
+  weight: 1
+  stairs: up
+  traits:
+    - {trait: fixed}
+
+stairs_down:
+  category: stairs
+  name: stairs down
+  glyph: ">"
+  color: [200, 200, 200]
+  weight: 1
+  stairs: down
+  traits:
+    - {trait: fixed}
+
+# What a monster leaves when it dies. The engine names it after the
+# monster ("goblin corpse") and gives it the monster's weight.
+corpse:
+  category: corpse
+  name: corpse
+  glyph: "%"
+  color: [140, 40, 40]
+  weight: 1

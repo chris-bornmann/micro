@@ -1,0 +1,11 @@
+# A maze: one big dark room walled into winding passages, made afresh
+# every game, with the way down as far from the way in as it gets.
+# Monsters, items and traps spawn in it at random, as on any level.
+#
+#   braid: percent of dead ends opened into loops (default 10).
+
+maze:
+  depths: [4, 8]
+  chance: 60
+  generator: maze
+  braid: 10

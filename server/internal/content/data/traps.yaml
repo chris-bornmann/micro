@@ -1,0 +1,63 @@
+# Traps. Each is a feature lying on a floor cell, placed when its level is
+# made. See README.md, "Traps", for every field and trait.
+#
+# Every trap carries:
+#   - hidden: undiscovered until it is sprung (or seen with true sight);
+#   - fixed:  never picked up, and remembered on the map once seen;
+#   - exactly one effect trait (pit, dart, trap_door, teleport_trap), with
+#     avoid_known: the percent chance a player who knows it is there steps
+#     around it (default 75).
+#
+# spawn: {model: per_level, levels: [first, last], chance: percent per level,
+#         count: n or [min, max], always_on: [levels that always get one]}
+
+pit:
+  category: trap
+  name: pit
+  glyph: "^"
+  color: [150, 110, 70]    # earth brown
+  weight: 0
+  traits:
+    - {trait: hidden}
+    - {trait: fixed}
+    # 1 to (level x per_level) damage: deeper pits are deeper.
+    - {trait: pit, min: 1, per_level: 1}
+  spawn: {model: per_level, levels: [1, 25], chance: 50, count: [1, 2]}
+
+dart_trap:
+  category: trap
+  name: dart trap
+  glyph: "^"
+  color: [110, 200, 80]    # poison green
+  weight: 0
+  traits:
+    - {trait: hidden}
+    - {trait: fixed}
+    # Hits with (hit_chance - Dexterity)%, kept within 5-95.
+    - {trait: dart, hit_chance: 70, damage: [1, 8], poison_damage: 3, poison_turns: 5}
+  spawn: {model: per_level, levels: [2, 25], chance: 35, count: 1}
+
+trap_door:
+  category: trap
+  name: trap door
+  glyph: "^"
+  color: [170, 170, 170]   # stone gray
+  weight: 0
+  traits:
+    - {trait: hidden}
+    - {trait: fixed}
+    - {trait: trap_door}
+  # Never on the last level: there is nowhere to fall.
+  spawn: {model: per_level, levels: [3, 24], chance: 25, count: 1, always_on: [5]}
+
+teleport_trap:
+  category: trap
+  name: teleport trap
+  glyph: "^"
+  color: [90, 210, 220]    # cyan
+  weight: 0
+  traits:
+    - {trait: hidden}
+    - {trait: fixed}
+    - {trait: teleport_trap}
+  spawn: {model: per_level, levels: [2, 25], chance: 20, count: 1}

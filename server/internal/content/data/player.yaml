@@ -1,0 +1,32 @@
+# The player. Exactly one template must have category: player.
+#
+# This is the built-in player. To test with a hand-crafted one instead,
+# write another file like this — players/example.yaml shows every option —
+# and start the server with -player path/to/it.yaml.
+
+player:
+  category: player
+  name: Player
+  glyph: "@"
+  color: [255, 255, 255]
+  weight: 100        # every other weight is relative to the player's 100
+  level: 1
+  hp: [10, 20]       # or one number: exactly that
+  # Each a number (exactly) or [min, max] (rolled). [6, 20] for all four
+  # can also be written attributes: [6, 20].
+  attributes: {strength: [6, 20], intelligence: [6, 20], dexterity: [6, 20], stamina: [6, 20]}
+  attack: {name: hands, damage: {bludgeoning: [1, 2]}}
+  pronoun: they
+  # The built-in player starts with nothing. A hand-crafted one can start
+  # equipped and carrying things, and with traits:
+  #   equipment: [{item: fine_dagger}, {item: shoes_of_sneaking}]
+  #   inventory: [{item: healing_potion}, {item: teleport_scroll, chance: 50}]
+  #   traits:    [{trait: poisoned, damage: 2, duration: 5}]   # duration: turns; omit for good
+  # Your bare-handed blows. A wielded weapon's own messages take over.
+  messages:
+    you_hit:
+      - "You punch {the defender} for {damage} hp of damage!"
+      - "You land a solid blow on {the defender} for {damage} hp of damage."
+    you_miss:
+      - "You swing at {the defender}, but miss!"
+      - "{The defender} dodges your fist."

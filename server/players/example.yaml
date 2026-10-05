@@ -1,0 +1,45 @@
+# A hand-crafted player, for testing. Start the server with it:
+#
+#   go run ./cmd/mapd -player players/example.yaml
+#
+# It replaces the built-in internal/content/data/player.yaml, and is
+# checked as strictly: a typo stops the server, with the file and line.
+# Anything the built-in content defines — items, monsters — can be used
+# here by its ID. This file may also define items of its own, as long as
+# their IDs are new.
+
+player:
+  category: player
+  name: Player
+  glyph: "@"
+  color: [255, 255, 255]
+  weight: 100
+  level: 1
+  hp: 40                                  # exactly 40
+  # Each a number (exactly) or [min, max] (rolled).
+  attributes: {strength: 18, intelligence: [6, 20], dexterity: 15, stamina: 8}
+  attack: {name: hands, damage: {bludgeoning: [1, 2]}}
+  pronoun: they
+  # Worn and wielded from the start, each in the first free slot that fits
+  # (a ring goes on the right hand, then the left).
+  equipment:
+    - {item: fine_dagger}
+    - {item: shoes_of_sneaking}
+    - {item: ring_of_true_sight}
+  # Carried in the pack. chance: percent (default 100).
+  inventory:
+    - {item: summon_scroll}
+    - {item: summon_scroll}
+    - {item: summon_scroll}
+    - {item: summon_scroll}
+    - {item: summon_scroll}
+    - {item: summon_scroll}
+  # Traits, any the content README lists. duration: turns it lasts;
+  # without it, it lasts for good.
+  traits:
+    - {trait: poisoned, damage: 2, duration: 5}
+  messages:
+    you_hit:
+      - "You punch {the defender} for {damage} hp of damage!"
+    you_miss:
+      - "You swing at {the defender}, but miss!"

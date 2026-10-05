@@ -1,0 +1,40 @@
+# The throne room: a level drawn by hand. See README.md, "Special levels".
+#
+#   .  floor    :  dark floor    #  wall    +  door    S  hidden door
+#   ,  corridor    (space) rock   <  >  the stairs
+#
+# Everything else is in the legend: what stands there. A drawn level has
+# only what it places, unless it asks for random spawns by depth too:
+#   populate: true                 # monsters, items and traps
+#   populate: [monsters]           # or just some of them
+
+throne_room:
+  depth: 10
+  map: |2
+     ###########         ##############
+     #.........#         #............############################
+     #..#...#..#         #...w........#..........................#
+     #.<.......+,,,,,    #........w...#..........................#
+     #..#...#..#    ,    #..w.........#.................w........#
+     #.........#    ,    ######+#######.....w....................#
+     ###########    ,          ,      #..........................#
+                    ,    ######+#######.....................w....#
+                    ,    #............#.......................K.>#
+                    ,    #............#.....................w....#
+                    ,,,,,+............+..........................#
+                         #............#..........................#
+                         #............#.....w....................#
+                         #######S######.................w........#
+                           #::::::::# #..........................#
+                           #:!!:::=:# #..........................#
+                           #:c:::?h:# ############################
+                           #::::::::#
+                           ##########
+  legend:
+    w: royal_guard
+    K: king
+    "!": healing_potion
+    "?": knowledge_scroll
+    "=": ring_of_regeneration
+    c: chain_mail
+    h: cursed_helm

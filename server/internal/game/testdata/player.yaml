@@ -1,0 +1,25 @@
+# A hand-crafted player for the game's own tests (player_test.go). Kept
+# apart from players/example.yaml, which is yours to edit for scenarios.
+
+player:
+  category: player
+  name: Player
+  glyph: "@"
+  color: [255, 255, 255]
+  weight: 100
+  level: 1
+  hp: 40
+  attributes: {strength: 18, intelligence: [6, 20], dexterity: 15, stamina: 8}
+  attack: {name: hands, damage: {bludgeoning: [1, 2]}}
+  pronoun: they
+  equipment:
+    - {item: fine_dagger}
+    - {item: shoes_of_sneaking}
+    - {item: ring_of_true_sight}
+  inventory:
+    - {item: healing_potion}
+    - {item: healing_potion}
+    - {item: summon_scroll}
+    - {item: teleport_scroll, chance: 50}
+  traits:
+    - {trait: poisoned, damage: 2, duration: 5}
