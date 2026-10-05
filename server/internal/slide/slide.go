@@ -1,7 +1,7 @@
 // Package slide computes where an intelligent agent ends up after
 // stepping onto an oily floor cell — a neutral, pure-of-entity-knowledge
 // function of the map, current objects, and direction of travel, the
-// same one-way shape as action.RollDamage or throw.Distance.
+// same one-way shape as throw.Distance.
 package slide
 
 import (

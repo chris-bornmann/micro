@@ -2,41 +2,23 @@
 // levels.go; this is only the command half.
 package game
 
-import (
-	"fmt"
-
-	"micro/server/internal/item"
-	"micro/server/internal/overlay"
-	"micro/server/internal/stairs"
-)
+import "fmt"
 
 // applyStairs is the "<"/">" key's handler: if the Player is standing on
-// a stairs item of the matching kind, applyStairsTransition (see
-// levels.go) moves them to the level it leads to. Returns
-// "There are no stairs %s here." without consuming a special action
-// (still finishes a turn, matching pickUp's "There is nothing here"
-// precedent) if nothing matches.
-func applyStairs(state *GameState, playerObj overlay.Object, kind stairs.Kind, direction string) (string, error) {
-	cands, err := floorItemsAt(state, playerObj.X, playerObj.Y)
+// stairs leading dir ("up" or "down"), applyStairsTransition moves them to
+// the level it leads to. Otherwise it says there are no such stairs here;
+// the turn still passes, as it does for picking up nothing.
+//
+// It is the one command that can fail: reaching a level for the first
+// time generates it, and a level that cannot be generated is a server
+// fault to report, not a game event.
+func applyStairs(state *GameState, dir string) ([]string, error) {
+	if stairsAmong(state.floorItemsAt(state.Player.X, state.Player.Y), dir) == nil {
+		return messagesOf(fmt.Sprintf("There are no stairs %s here.", dir)), nil
+	}
+	msg, err := applyStairsTransition(state, dir)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	for _, raw := range cands {
-		it, err := itemInfo(raw)
-		if err != nil {
-			return "", err
-		}
-		if it.Category != item.CategoryStairs {
-			continue
-		}
-		gotKind, err := stairs.KindOf(raw)
-		if err != nil {
-			return "", err
-		}
-		if gotKind != kind {
-			continue
-		}
-		return applyStairsTransition(state, kind)
-	}
-	return fmt.Sprintf("There are no stairs %s here.", direction), nil
+	return messagesOf(msg), nil
 }

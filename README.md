@@ -5,7 +5,10 @@ A roguelike, split into a server that owns the game and a client that draws it.
 ```
 go.work              two modules, no shared third one
 server/              the game: HTTP API + all logic          (module micro/server)
+  internal/rules/    the rules engine: entities, traits, combat, turns
+  internal/content/  every monster and item, as YAML
 client/              display and input                        (module micro/client)
+  web/               the browser client (TypeScript, Vite)    see client/web/README.md
 PROTOCOL.md          the contract between them
 api.http             play the game with no client at all
 scripts/smoke.sh     end-to-end check: real server, real client, real socket
@@ -27,6 +30,13 @@ cd client && go run ./cmd/hackgui                 # window
 ```
 
 Either client waits a few seconds for the server, so the order does not matter.
+
+The web client runs in a browser and calls the server from another origin:
+
+```sh
+cd server && go run ./cmd/mapd -cors-origin http://localhost:5173
+cd client/web && npm install && npm run dev       # http://localhost:5173
+```
 
 ## Testing
 
@@ -56,17 +66,46 @@ types. Each declares its own structs for the payloads it handles, and
 in `server/internal/httpapi` pinning the frame's key set so drift fails a build
 rather than a playthrough.
 
-Both rules are enforced rather than trusted. `server/go.mod` has no
-dependencies at all (every fyne and x/image dependency is the client's), every
+Both rules are enforced rather than trusted. `server/go.mod` has exactly one
+dependency, the YAML parser its content is written in (every fyne and x/image
+dependency is the client's), every
 server package sits under `internal/`, and a test in
 `client/internal/httpclient` fails if any client package acquires a
 `micro/server` dependency.
 
+## Monsters and items are data
+
+Every monster, weapon, piece of armor and item is a template in
+`server/internal/content/data/*.yaml`. What a template does beyond the basics
+comes from its **traits**: small, reusable behaviors written once in Go and
+configured per template. The mummy's weakness to fire is one line:
+
+```yaml
+traits:
+  - {trait: vulnerable, type: fire, multiplier: 2}
+```
+
+When anything is decided — how much damage a blow does, whether a sword can
+be let go of, whether a goblin notices you — the rules engine
+(`server/internal/rules`) asks every trait involved: the attacker's, the
+weapon's, the defender's, and whatever either of them is wearing. Adding a
+monster or an item that uses existing traits needs no Go at all. A new *kind*
+of behavior is a new trait, AI or action, registered in `rules/traits`,
+`rules/ai` or `rules/actions`.
+
+Content is checked when the server starts. An unknown field or trait, a
+parameter of the wrong type or a reference to a template that does not exist
+stops it with the file and line. `server/internal/content/data/README.md` has
+the full vocabulary.
+
 ## Cheats
 
-`-reveal-hidden` and `-show-full-map` are `mapd` flags, not request fields,
-because they exist to reveal what the game is otherwise hiding. A client has no
-way to ask for either. The only thing a client may choose is the seed, and only
+`-reveal-hidden`, `-show-full-map` and `-cheat-mode` are `mapd` flags, not
+request fields, because they exist to reveal what the game is otherwise hiding
+or to bend its rules. `-reveal-hidden` draws hidden doors and invisible
+monsters in magenta; `-show-full-map` lifts fog of war and nothing else;
+`-cheat-mode` starts the player with 1000 hit points. A client has no way to
+ask for any of them. The only thing a client may choose is the seed, and only
 so a bug can be reproduced — it reproduces the opening state, not a whole
 playthrough, because combat rolls come from the global RNG by long-standing
 convention.

@@ -19,6 +19,8 @@
 package httpapi
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,7 +47,6 @@ type Server struct {
 
 	mu    sync.RWMutex
 	games map[string]*game.Game
-	next  int
 }
 
 // New builds a Server. logger may be nil, in which case request errors are
@@ -145,9 +146,12 @@ func (s *Server) handleNewGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, err := newGameID()
+	if err != nil {
+		s.fail(w, r, http.StatusInternalServerError, err)
+		return
+	}
 	s.mu.Lock()
-	s.next++
-	id := fmt.Sprintf("g%d", s.next)
 	s.games[id] = g
 	s.mu.Unlock()
 
@@ -184,8 +188,8 @@ func (s *Server) handleCommand(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// An unrecognized key is deliberately not rejected. It falls through to
-	// the player service and costs a turn, exactly as it did before the
-	// split — pressing an unbound key has always wasted a turn. Validating
+	// the game and costs a turn — pressing an unbound key has always
+	// wasted a turn. Validating
 	// here would mean maintaining a key whitelist alongside the command
 	// switch, which is a second thing that can silently drift out of step
 	// with it.
@@ -309,4 +313,16 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 		// report this. Dropping it is the only option.
 		return
 	}
+}
+
+// newGameID returns 128 random bits, hex-encoded. A game ID is the only
+// thing standing between one player's game and anyone else who can reach
+// the server — there is no other authentication — so it must not be
+// guessable, as a counter would be.
+func newGameID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate game id: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
 }

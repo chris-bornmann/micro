@@ -18,6 +18,27 @@
       "problemMatcher": ["$go"]
     },
     {
+      // The web client's dev server, hot-reloading on save. It calls mapd
+      // across origins, so start mapd with -cors-origin http://localhost:5173.
+      "label": "web: dev",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/client/web" },
+      "isBackground": true,
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
+    },
+    {
+      // Typecheck, lint and unit tests for the web client.
+      "label": "test: web",
+      "type": "shell",
+      "command": "npm run typecheck && npm run lint && npm test",
+      "options": { "cwd": "${workspaceFolder}/client/web" },
+      "group": "test",
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
       // The four seed sweeps included: ~20s. Run before committing.
       "label": "test: server (full)",
       "type": "shell",
@@ -88,9 +109,11 @@
       "problemMatcher": ["$go"]
     },
     {
+      // go list, not a bare `gofmt -l server client`: gofmt would walk into
+      // client/web/node_modules, which can contain stray .go files.
       "label": "fmt: check",
       "type": "shell",
-      "command": "test -z \"$(gofmt -l server client)\" || { echo 'needs gofmt:'; gofmt -l server client; exit 1; }",
+      "command": "out=$(go list -f '{{.Dir}}' micro/server/... micro/client/... | xargs gofmt -l) && test -z \"$out\" || { echo 'needs gofmt:'; echo \"$out\"; exit 1; }",
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": []
     },

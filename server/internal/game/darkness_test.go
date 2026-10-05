@@ -5,6 +5,7 @@ import (
 
 	"micro/server/internal/mapdata"
 	"micro/server/internal/overlay"
+	"micro/server/internal/rules"
 	"micro/server/internal/vision"
 )
 
@@ -76,11 +77,11 @@ func TestFilterObjectsShowsOnlyObjectsWithinCurrentRadius(t *testing.T) {
 
 	litTiles, _, _ := vision.CurrentlyLit(m, 7, 7, false)
 
-	player := overlay.Object{ID: "player:1", X: 7, Y: 7}
-	adjacentGoblin := overlay.Object{ID: "goblin:1", X: 8, Y: 7} // 1 tile away, within radius 1
-	farGoblin := overlay.Object{ID: "goblin:2", X: 5, Y: 9}      // same room, out of radius
+	player := sighting{Object: overlay.Object{ID: "player:1", X: 7, Y: 7}}
+	adjacentGoblin := sighting{Object: overlay.Object{ID: "goblin:1", X: 8, Y: 7}} // 1 tile away, within radius 1
+	farGoblin := sighting{Object: overlay.Object{ID: "goblin:2", X: 5, Y: 9}}      // same room, out of radius
 
-	visible := v.filterObjects(&m, []overlay.Object{player, adjacentGoblin, farGoblin}, litTiles)
+	visible := v.filterObjects(&m, []sighting{player, adjacentGoblin, farGoblin}, litTiles)
 
 	seen := map[string]bool{}
 	for _, o := range visible {
@@ -108,9 +109,9 @@ func TestFilterObjectsHidesObjectsOnRememberedButNotCurrentlyLitTiles(t *testing
 	// CURRENT frame's lit tiles, so an object sitting there must be
 	// hidden even though the floor renders.
 	litAt99, _, _ := vision.CurrentlyLit(m, 9, 9, false)
-	monsterAtOldSpot := overlay.Object{ID: "goblin:1", X: 6, Y: 6}
+	monsterAtOldSpot := sighting{Object: overlay.Object{ID: "goblin:1", X: 6, Y: 6}}
 
-	visible := v.filterObjects(&m, []overlay.Object{monsterAtOldSpot}, litAt99)
+	visible := v.filterObjects(&m, []sighting{monsterAtOldSpot}, litAt99)
 	if len(visible) != 0 {
 		t.Errorf("expected the object on a remembered-but-not-currently-lit tile hidden, got %+v", visible)
 	}
@@ -171,9 +172,81 @@ func TestDarkRoomFloorStaysRememberedAfterPlayerLeavesButObjectsDoNot(t *testing
 
 	// ...but a monster sitting on that remembered tile must not show,
 	// since the Player is no longer anywhere near it.
-	monsterAtOldSpot := overlay.Object{ID: "goblin:1", X: 6, Y: 6}
-	visible := v.filterObjects(&m, []overlay.Object{monsterAtOldSpot}, lit3)
+	monsterAtOldSpot := sighting{Object: overlay.Object{ID: "goblin:1", X: 6, Y: 6}}
+	visible := v.filterObjects(&m, []sighting{monsterAtOldSpot}, lit3)
 	if len(visible) != 0 {
 		t.Errorf("expected the monster on the remembered tile hidden once the Player is far away, got %+v", visible)
+	}
+}
+
+// shownDoors is where vis draws doors: every door endpoint on the map.
+func shownDoors(vis *mapdata.Map) map[mapdata.Point]bool {
+	out := map[mapdata.Point]bool{}
+	for _, c := range vis.Corridors {
+		for _, d := range []mapdata.Door{c.DoorA, c.DoorB} {
+			if d != offMap {
+				out[mapdata.Point{X: d.X, Y: d.Y}] = true
+			}
+		}
+	}
+	return out
+}
+
+// TestADarkRoomsDoorShowsOnlyOnceSeen: inside a dark room, its door at
+// (10,7) stays unseen from across the room, shows once the Player is next
+// to it, and stays shown after they move away.
+func TestADarkRoomsDoorShowsOnlyOnceSeen(t *testing.T) {
+	m := darkTestMap()
+	v := newVisibility()
+	door := mapdata.Point{X: 10, Y: 7}
+	at := func(x, y int) {
+		v.reveal(&m, x, y)
+		v.seeDoors(&m, x, y, false)
+	}
+
+	at(6, 7)
+	if shownDoors(v.visibleMap(&m))[door] {
+		t.Fatal("from across a dark room, its door should not show")
+	}
+	at(9, 6) // diagonally next to it
+	if !shownDoors(v.visibleMap(&m))[door] {
+		t.Fatal("next to it, the door should show")
+	}
+	at(6, 7)
+	if !shownDoors(v.visibleMap(&m))[door] {
+		t.Error("a door once seen stays shown")
+	}
+}
+
+func TestATorchShowsEveryDoorOfADarkRoom(t *testing.T) {
+	m := darkTestMap()
+	v := newVisibility()
+	v.reveal(&m, 6, 7)
+	v.seeDoors(&m, 6, 7, true)
+	if !shownDoors(v.visibleMap(&m))[mapdata.Point{X: 10, Y: 7}] {
+		t.Error("a torch lights the whole room, its doors too")
+	}
+}
+
+// TestTrueSightShowsAHiddenDoorOnlyWhereThePlayerCanSee: the ring of true
+// sight draws a dark room's hidden door as a door — but only once the
+// Player's light reaches it, not on entering the room.
+func TestTrueSightShowsAHiddenDoorOnlyWhereThePlayerCanSee(t *testing.T) {
+	m := darkTestMap()
+	m.Corridors[0].DoorA.Hidden = true
+	p := testPlayer(t, 6, 7, 100)
+	p.Equipped = map[rules.Slot]*rules.Entity{rules.SlotRightHand: testItem(t, "ring_of_true_sight", 0, 0)}
+	state := newTestGameState(t, &m, p, nil, nil)
+
+	glyphAtDoor := func() byte {
+		revealAroundPlayer(state)
+		return buildFrame(state, 0, false, false).Rows[7][10]
+	}
+	if g := glyphAtDoor(); g == '+' {
+		t.Fatal("from across the dark room, the hidden door should not show")
+	}
+	p.X = 9
+	if g := glyphAtDoor(); g != '+' {
+		t.Errorf("next to it, true sight should show it as a door, got %q", g)
 	}
 }

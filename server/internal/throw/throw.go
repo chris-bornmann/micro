@@ -1,9 +1,7 @@
 // Package throw computes how far a thrown object travels and how much
-// damage it deals if it hits someone — a neutral, pure function of an
-// object's own Weight and the thrower's Strength, the same one-way "no
-// entity-specific knowledge" shape as action.RollDamage or
-// vision.CurrentlyLit. Today only the Player throws (see player.Throw);
-// nothing stops a future ranged-weapon system built on top of it.
+// damage it deals if it hits someone — a pure function of the object's
+// weight and the thrower's Strength. The rules engine uses it for every
+// throw (see rules.Ctx.Throw).
 package throw
 
 import "math"
@@ -27,8 +25,8 @@ func Distance(weight, strength int) int {
 // Damage returns the [min,max] damage range a thrown object deals if it
 // hits an intelligent agent, combining the object's own weight with the
 // thrower's strength BEFORE rolling — unlike a melee attack, where the
-// same kind of strength bonus (see action.Result.Attributes) is instead
-// added AFTER the roll (see player.Defend/goblin.Defend). Applied
+// same kind of strength bonus is instead added AFTER the roll (see
+// rules.Ctx.Melee). Applied
 // uniformly regardless of item category (weapon, potion, ...), since not
 // every thrown item has its own combat stats.
 //

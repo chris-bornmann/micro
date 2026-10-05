@@ -3,6 +3,7 @@ package game
 import (
 	"micro/server/internal/mapdata"
 	"micro/server/internal/overlay"
+	"micro/server/internal/vision"
 )
 
 // offMap is used as a sentinel door position to suppress rendering a door
@@ -26,10 +27,47 @@ type Visibility struct {
 	// object on this tile visible right now," which stays a per-turn
 	// question (see filterObjects's own currentlyVisible parameter).
 	LitTiles map[mapdata.Point]bool
+	// Doors is every door of a Dark room that has ever been within the
+	// Player's light (see seeDoors). A lit room's doors show as soon as
+	// the room is visited; a dark room's only once seen — darkness hides
+	// a far wall's door, hidden or not, true sight or not.
+	Doors map[mapdata.Point]bool
 }
 
 func newVisibility() Visibility {
-	return Visibility{Rooms: map[int]bool{}, Corridors: map[int]bool{}, LitTiles: map[mapdata.Point]bool{}}
+	return Visibility{Rooms: map[int]bool{}, Corridors: map[int]bool{}, LitTiles: map[mapdata.Point]bool{}, Doors: map[mapdata.Point]bool{}}
+}
+
+// seeDoors records the doors of the Dark room the Player stands in, at
+// (x,y), that their light reaches: those within vision.DarkRadius of
+// them — next to them, diagonals included — or, with torchLit, every
+// door of the room, as a torch lights the whole room. Outside a dark
+// room it does nothing. Like reveal, nothing seen is ever forgotten.
+func (v Visibility) seeDoors(m *mapdata.Map, x, y int, torchLit bool) {
+	r, ok := m.RoomAt(x, y)
+	if !ok || !r.Dark {
+		return
+	}
+	near := func(d mapdata.Door) bool {
+		return torchLit || max(d.X-x, x-d.X, d.Y-y, y-d.Y) <= vision.DarkRadius
+	}
+	for _, c := range m.Corridors {
+		if c.RoomA == r.ID && near(c.DoorA) {
+			v.Doors[mapdata.Point{X: c.DoorA.X, Y: c.DoorA.Y}] = true
+		}
+		if c.RoomB == r.ID && near(c.DoorB) {
+			v.Doors[mapdata.Point{X: c.DoorB.X, Y: c.DoorB.Y}] = true
+		}
+	}
+}
+
+// doorShown reports whether door d of room roomID, a visited room, is
+// drawn: always for a lit room; for a Dark room, once it has been seen.
+func (v Visibility) doorShown(m *mapdata.Map, roomID int, d mapdata.Door) bool {
+	if r, ok := m.RoomByID(roomID); ok && r.Dark {
+		return v.Doors[mapdata.Point{X: d.X, Y: d.Y}]
+	}
+	return true
 }
 
 // rememberLitTiles permanently records tiles as having been lit at least
@@ -100,10 +138,12 @@ func (v Visibility) reveal(m *mapdata.Map, x, y int) {
 // future minimap/quest tracking, and consulted directly by the corridor
 // synthesis below), only this render-time filter hides its interior.
 // Corridor synthesis still consults v.Rooms directly, not this exclusion,
-// so a doorway into a dark room still renders normally — darkness only
-// ever hides a room's own interior, never the corridors/doors around it.
+// but a dark room's door is drawn only once it has been seen (see
+// seeDoors): entering a dark room does not light up every door around
+// it. A corridor the Player has been along shows whole, its doors with
+// it.
 func (v Visibility) visibleMap(m *mapdata.Map) *mapdata.Map {
-	out := &mapdata.Map{Width: m.Width, Height: m.Height, Seed: m.Seed}
+	out := &mapdata.Map{Width: m.Width, Height: m.Height, Seed: m.Seed, Walls: m.Walls}
 
 	for _, r := range m.Rooms {
 		if r.Dark {
@@ -120,7 +160,8 @@ func (v Visibility) visibleMap(m *mapdata.Map) *mapdata.Map {
 			continue
 		}
 
-		aVisible, bVisible := v.Rooms[c.RoomA], v.Rooms[c.RoomB]
+		aVisible := v.Rooms[c.RoomA] && v.doorShown(m, c.RoomA, c.DoorA)
+		bVisible := v.Rooms[c.RoomB] && v.doorShown(m, c.RoomB, c.DoorB)
 		if !aVisible && !bVisible {
 			continue
 		}
@@ -140,11 +181,17 @@ func (v Visibility) visibleMap(m *mapdata.Map) *mapdata.Map {
 	return out
 }
 
+// sighting is an object that might be drawn, and whether it is fixed in
+// place (see filterObjects).
+type sighting struct {
+	overlay.Object
+	Fixed bool
+}
+
 // filterObjects keeps only the objects that should actually be drawn this
-// turn, and treats a movable object very differently from a Fixed one
-// (overlay.Object.Fixed).
+// turn, and treats a movable object very differently from a fixed one.
 //
-// A movable object — every item and intelligent entity today — is shown
+// A movable object — every creature, and every item but the stairs — is shown
 // only while it's somewhere currentlyVisible: if you can't see it right
 // now, you have no idea whether it's still there, so there's no memory
 // fallback at all. currentlyVisible is exactly vision.CurrentlyVisible's
@@ -153,14 +200,14 @@ func (v Visibility) visibleMap(m *mapdata.Map) *mapdata.Map {
 // them in a dark room) keep rendering even though a Dark room is always
 // excluded from the visited map below.
 //
-// A Fixed object (e.g. a future staircase) behaves like part of the
+// A fixed object (a staircase) behaves like part of the
 // map's own geometry instead: once its tile has ever been seen, it's
 // remembered forever, exactly like a room or corridor's shape — via
 // v.LitTiles for a Dark room's interior (excluded wholesale from the
 // visited map) or vis.RoomAt/CorridorAt for everything else.
-func (v Visibility) filterObjects(m *mapdata.Map, objects []overlay.Object, currentlyVisible []mapdata.Point) []overlay.Object {
+func (v Visibility) filterObjects(m *mapdata.Map, objects []sighting, currentlyVisible []mapdata.Point) []sighting {
 	vis := v.visibleMap(m)
-	var out []overlay.Object
+	var out []sighting
 	for _, o := range objects {
 		if !o.Fixed {
 			if containsPoint(currentlyVisible, o.X, o.Y) {

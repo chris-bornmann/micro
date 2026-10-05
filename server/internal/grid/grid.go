@@ -41,21 +41,25 @@ func dim(c overlay.Color) overlay.Color {
 }
 
 // Canonical RGB palette for each tile kind. Terrain colors are dimmed (see
-// terrainDimFactor); colorHiddenDebug is a debug-only reveal aid,
-// deliberately left at full intensity so it stays easy to spot.
+// terrainDimFactor); RevealColor is a debug-only reveal aid, deliberately
+// left at full intensity so it stays easy to spot.
 //
 // These live server-side because Build does, and Build is what turns a
 // level into cells. A client is still free to substitute its own colors:
 // every frame carries its palette with it (see Grid.Encode), so remapping
 // is a client-side lookup, not a protocol change.
 var (
-	colorWall        = dim(overlay.Color{R: 0x82, G: 0x82, B: 0x82}) // legible glyph on a black background, not tuned as a solid block
-	colorFloorLit    = dim(overlay.Color{R: 0xe8, G: 0xdf, B: 0xa4}) // warm pale yellow
-	colorFloorDark   = dim(overlay.Color{R: 0x50, G: 0x50, B: 0x66}) // dim but not near-invisible on black
-	colorCorridor    = dim(overlay.Color{R: 0x5a, G: 0x7f, B: 0xa6}) // light blue
-	colorDoor        = dim(overlay.Color{R: 0xb0, G: 0x6a, B: 0x1f}) // orange/brown
-	colorHiddenDebug = overlay.Color{R: 0xc9, G: 0x4f, B: 0xd6}      // magenta, debug-only reveal — full intensity
+	colorWall      = dim(overlay.Color{R: 0x82, G: 0x82, B: 0x82}) // legible glyph on a black background, not tuned as a solid block
+	colorFloorLit  = dim(overlay.Color{R: 0xe8, G: 0xdf, B: 0xa4}) // warm pale yellow
+	colorFloorDark = dim(overlay.Color{R: 0x50, G: 0x50, B: 0x66}) // dim but not near-invisible on black
+	colorCorridor  = dim(overlay.Color{R: 0x5a, G: 0x7f, B: 0xa6}) // light blue
+	colorDoor      = dim(overlay.Color{R: 0xb0, G: 0x6a, B: 0x1f}) // orange/brown
 )
+
+// RevealColor is what the -reveal-hidden cheat draws hidden things in —
+// hidden doors here, and invisible monsters (see game.visibleObjects) — so
+// everything the game is otherwise hiding stands out the same way.
+var RevealColor = overlay.Color{R: 0xc9, G: 0x4f, B: 0xd6} // magenta
 
 // Options controls how a level is rasterized.
 type Options struct {
@@ -63,6 +67,9 @@ type Options struct {
 	// disguising them as plain wall. A cheat/inspection switch, set from
 	// the server's own flags and never from anything a client sends.
 	RevealHidden bool
+	// SeeHidden draws hidden doors as the ordinary doors they are — what a
+	// player who can see invisible sees. RevealHidden, the cheat, wins.
+	SeeHidden bool
 	// Objects are drawn on top of the map, sorted by ascending Layer.
 	// Whoever builds these has already decided what the player can
 	// perceive; Build draws all of them.
@@ -145,8 +152,21 @@ func Build(m *mapdata.Map, opts Options) Grid {
 		set(corr.DoorB.X, corr.DoorB.Y, doorCell(corr.DoorB, opts))
 	}
 
+	// Walls inside rooms (a maze): drawn wherever their room is drawn
+	// whole. (A dark room seen normally is not: its walls come one at a
+	// time with its lit tiles, below.)
+	for p := range m.Walls {
+		if _, ok := m.RoomAt(p.X, p.Y); ok {
+			set(p.X, p.Y, Cell{'#', colorWall})
+		}
+	}
+
 	for _, p := range opts.LitTiles {
-		set(p.X, p.Y, Cell{'.', colorFloorDark})
+		c := Cell{'.', colorFloorDark}
+		if m.IsWall(p.X, p.Y) {
+			c = Cell{'#', colorWall}
+		}
+		set(p.X, p.Y, c)
 	}
 
 	objects := append([]overlay.Object(nil), opts.Objects...)
@@ -164,10 +184,12 @@ func Build(m *mapdata.Map, opts Options) Grid {
 // side of the network, can tell the difference.
 func doorCell(d mapdata.Door, opts Options) Cell {
 	if d.Hidden {
-		if opts.RevealHidden {
-			return Cell{'h', colorHiddenDebug}
+		switch {
+		case opts.RevealHidden:
+			return Cell{'h', RevealColor}
+		case !opts.SeeHidden:
+			return Cell{'#', colorWall} // indistinguishable from wall to a player
 		}
-		return Cell{'#', colorWall} // indistinguishable from wall to a player
 	}
 	return Cell{'+', colorDoor}
 }

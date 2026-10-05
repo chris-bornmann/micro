@@ -172,3 +172,22 @@ func TestRoomByIDFalseWhenMissing(t *testing.T) {
 		t.Error("expected ok=false for a room ID that doesn't exist")
 	}
 }
+
+func TestRevealDoorAtUpdatesEveryCopy(t *testing.T) {
+	m := Map{
+		Corridors: []Corridor{
+			{DoorA: Door{X: 3, Y: 4, Hidden: true}, DoorB: Door{X: 9, Y: 9}},
+			{DoorA: Door{X: 1, Y: 1}, DoorB: Door{X: 3, Y: 4, Hidden: true}},
+		},
+		Doors: []Door{{X: 3, Y: 4, Hidden: true}, {X: 9, Y: 9}},
+	}
+	if !m.RevealDoorAt(3, 4) {
+		t.Fatal("expected a hidden door to reveal")
+	}
+	if m.Corridors[0].DoorA.Hidden || m.Corridors[1].DoorB.Hidden || m.Doors[0].Hidden {
+		t.Error("every copy of the door should be revealed")
+	}
+	if m.RevealDoorAt(3, 4) || m.RevealDoorAt(9, 9) {
+		t.Error("nothing hidden is left there to reveal")
+	}
+}

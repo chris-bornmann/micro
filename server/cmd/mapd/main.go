@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"micro/server/internal/game"
@@ -37,11 +38,22 @@ func main() {
 	flag.Int64Var(&cfg.Seed, "seed", cfg.Seed, "default RNG seed for new games (0 = random per game)")
 
 	addr := flag.String("addr", ":8080", "address to listen on")
-	revealHidden := flag.Bool("reveal-hidden", false, "cheat: draw hidden doors distinctly instead of disguising them as walls")
-	showFullMap := flag.Bool("show-full-map", false, "cheat: ignore fog of war and send the entire generated level")
+	revealHidden := flag.Bool("reveal-hidden", false, "cheat: draw hidden doors and invisible monsters, in magenta")
+	showFullMap := flag.Bool("show-full-map", false, "cheat: ignore fog of war and send the entire generated level (invisible monsters stay hidden)")
+	cheatMode := flag.Bool("cheat-mode", false, "cheat: start the player with 1000 hit points")
+	playerFile := flag.String("player", "", "testing: load the player from this YAML file instead of the built-in one (see internal/content/data/README.md)")
+	corsOrigins := flag.String("cors-origin", "", "comma-separated origins whose web pages may call this server, e.g. http://localhost:5173 (default: none)")
 	flag.Parse()
 
 	logger := log.New(os.Stderr, "mapd: ", log.LstdFlags)
+
+	// Check the game's content before serving anything: a mistake in a
+	// YAML file should stop the server here, with the file and line, not
+	// fail the first new game.
+	if err := game.LoadContent(*playerFile); err != nil {
+		fmt.Fprintln(os.Stderr, "mapd: content:", err)
+		os.Exit(1)
+	}
 
 	// newGame closes over the server's own settings, so the only thing a
 	// request can influence is the seed.
@@ -50,17 +62,17 @@ func main() {
 		if seed != nil {
 			c.Seed = *seed
 		}
-		return game.NewGame(c, *revealHidden, *showFullMap)
+		return game.NewGame(c, *revealHidden, *showFullMap, *cheatMode)
 	}
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpapi.New(newGame, logger),
+		Handler:           httpapi.WithCORS(httpapi.New(newGame, logger), splitOrigins(*corsOrigins)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	if *revealHidden || *showFullMap {
-		logger.Printf("WARNING: cheats enabled (reveal-hidden=%v show-full-map=%v)", *revealHidden, *showFullMap)
+	if *revealHidden || *showFullMap || *cheatMode {
+		logger.Printf("WARNING: cheats enabled (reveal-hidden=%v show-full-map=%v cheat-mode=%v)", *revealHidden, *showFullMap, *cheatMode)
 	}
 	// The launch configuration's compound start races the client against this
 	// line, so say it in a form that is obvious in a log.
@@ -70,4 +82,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "mapd:", err)
 		os.Exit(1)
 	}
+}
+
+// splitOrigins parses -cors-origin's comma-separated list, ignoring blanks.
+func splitOrigins(list string) []string {
+	var out []string
+	for _, o := range strings.Split(list, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
 }

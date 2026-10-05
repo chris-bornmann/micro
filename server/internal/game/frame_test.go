@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-
-	"micro/server/internal/player"
 )
 
 // The tests here are the ones that matter most for the client/server split:
@@ -17,12 +15,7 @@ import (
 // settings (both off, i.e. what a player actually gets).
 func frameFor(t *testing.T) Frame {
 	t.Helper()
-	state := newLevel1TestState(t)
-	f, err := buildFrame(state, 0, false, false)
-	if err != nil {
-		t.Fatalf("buildFrame: %v", err)
-	}
-	return f
+	return buildFrame(newLevel1TestState(t), 0, false, false)
 }
 
 // TestFrameCarriesNoSeed is the single most important assertion in this
@@ -118,14 +111,8 @@ func TestFrameHidesUnexploredGeometry(t *testing.T) {
 func TestFrameShowsEverythingWithShowFullMap(t *testing.T) {
 	state := newLevel1TestState(t)
 
-	fogged, err := buildFrame(state, 0, false, false)
-	if err != nil {
-		t.Fatalf("buildFrame: %v", err)
-	}
-	full, err := buildFrame(state, 0, false, true)
-	if err != nil {
-		t.Fatalf("buildFrame: %v", err)
-	}
+	fogged := buildFrame(state, 0, false, false)
+	full := buildFrame(state, 0, false, true)
 
 	drawn := func(f Frame) int {
 		n := 0
@@ -169,27 +156,15 @@ func TestFrameConformsToTheProtocol(t *testing.T) {
 // fog filtering — the player is always visible to themselves, including
 // inside a dark room, whose rectangle is never sent as such.
 //
-// It reads the expected glyph out of the state rather than hardcoding '@'
-// so it tests buildFrame rather than the fixture: newLevel1TestState builds
-// a synthetic player, not one from player.Init, and leaves Glyph at zero.
-// Checking the player's own coordinates is the stronger assertion anyway —
-// it catches the object landing on the frame at the wrong place, which
+// Checking the player's own coordinates is the stronger assertion — it
+// catches the object landing on the frame at the wrong place, which
 // searching the whole grid for a character would not.
 func TestFrameShowsThePlayer(t *testing.T) {
 	state := newLevel1TestState(t)
-	p, err := playerObject(state.PlayerState)
-	if err != nil {
-		t.Fatalf("playerObject: %v", err)
-	}
-	f, err := buildFrame(state, 0, false, false)
-	if err != nil {
-		t.Fatalf("buildFrame: %v", err)
-	}
+	p := state.Player
+	f := buildFrame(state, 0, false, false)
 
-	want := p.Glyph
-	if want == 0 {
-		want = ' ' // Build normalises a zero glyph to a blank cell
-	}
+	want := p.T.Glyph
 	got, err := glyphAt(f, p.X, p.Y)
 	if err != nil {
 		t.Fatalf("glyphAt(%d,%d): %v", p.X, p.Y, err)
@@ -200,37 +175,17 @@ func TestFrameShowsThePlayer(t *testing.T) {
 	}
 }
 
-// TestFrameDrawsTheRealPlayerGlyph complements the test above using a player
-// built the way the game builds one, so the '@' actually reaching the wire
-// is covered too.
+// TestFrameDrawsTheRealPlayerGlyph complements the test above using a whole
+// game started the way the server starts one, so the '@' actually reaching
+// the wire is covered too.
 func TestFrameDrawsTheRealPlayerGlyph(t *testing.T) {
-	cfg := testLevelConfig()
-	ls, err := populateLevel(cfg, 1, map[string]bool{})
+	g, err := NewGame(testLevelConfig(), false, false, false)
 	if err != nil {
-		t.Fatalf("populateLevel: %v", err)
+		t.Fatalf("NewGame: %v", err)
 	}
-	playerState, err := initPlayer(ls.Map)
+	f, err := g.Frame()
 	if err != nil {
-		t.Fatalf("initPlayer: %v", err)
-	}
-	state := &GameState{
-		PlayerState:  playerState,
-		CurrentLevel: 1,
-		Levels:       make([]*levelState, maxLevels),
-		LevelConfig:  cfg,
-		SpawnedOnce:  map[string]bool{},
-		levelState:   ls,
-	}
-	state.Levels[0] = ls
-	p, err := playerObject(state.PlayerState)
-	if err != nil {
-		t.Fatalf("playerObject: %v", err)
-	}
-	state.Visited.reveal(state.Map, p.X, p.Y)
-
-	f, err := buildFrame(state, 0, false, false)
-	if err != nil {
-		t.Fatalf("buildFrame: %v", err)
+		t.Fatalf("Frame: %v", err)
 	}
 
 	found := false
@@ -289,16 +244,7 @@ func TestTurnCountsTurnsNotKeypresses(t *testing.T) {
 
 	// Opening a picker does not. "D" always opens one when anything is
 	// carried, so give the Player something first.
-	give := func() {
-		t.Helper()
-		raw := potionAt(t, state.Map, 0, 0)
-		items, err := player.PickUp(state.PlayerState, raw)
-		if err != nil {
-			t.Fatalf("PickUp: %v", err)
-		}
-		state.PlayerState = items
-	}
-	give()
+	carrying(state.Player, testItem(t, "healing_potion", 0, 0))
 	before := state.Turn
 	if _, err := handleKey(state, "D"); err != nil {
 		t.Fatalf("handleKey(\"D\"): %v", err)
@@ -319,5 +265,45 @@ func TestTurnCountsTurnsNotKeypresses(t *testing.T) {
 	}
 	if state.Turn != before {
 		t.Errorf("Turn = %d after cancelling a picker, want %d unchanged", state.Turn, before)
+	}
+}
+
+func TestCheatModeStartsThePlayerOnAThousandHP(t *testing.T) {
+	for _, cheat := range []bool{false, true} {
+		g, err := NewGame(testLevelConfig(), false, false, cheat)
+		if err != nil {
+			t.Fatalf("NewGame: %v", err)
+		}
+		p := g.state.Player
+		if cheat != (p.HP == 1000 && p.MaxHP == 1000) {
+			t.Errorf("cheat mode %v: HP %d/%d", cheat, p.HP, p.MaxHP)
+		}
+	}
+}
+
+// TestThePlayerStartsInTheRoomWithTheStairsUp: level 1 begins where every
+// other level does, at the way back up.
+func TestThePlayerStartsInTheRoomWithTheStairsUp(t *testing.T) {
+	onStairs := 0
+	for seed := int64(1); seed <= 40; seed++ {
+		cfg := testLevelConfig()
+		cfg.Seed = seed
+		g, err := NewGame(cfg, false, false, false)
+		if err != nil {
+			t.Fatalf("seed %d: NewGame: %v", seed, err)
+		}
+		s := g.state
+		up := stairsAmong(s.FloorItems, "up")
+		want, _ := s.Map.RoomAt(up.X, up.Y)
+		got, ok := s.Map.RoomAt(s.Player.X, s.Player.Y)
+		if !ok || got.ID != want.ID {
+			t.Errorf("seed %d: Player in room %d (in a room: %v), stairs up in room %d", seed, got.ID, ok, want.ID)
+		}
+		if s.Player.X == up.X && s.Player.Y == up.Y {
+			onStairs++
+		}
+	}
+	if onStairs == 40 {
+		t.Error("the Player should land anywhere in the room, not always on the stairs")
 	}
 }

@@ -129,3 +129,18 @@ func TestViewForCoversEveryServerView(t *testing.T) {
 		}
 	}
 }
+
+// TestPickLetterTakesEveryLetter: in a picker, the movement, view and quit
+// shortcuts are just letters.
+func TestPickLetterTakesEveryLetter(t *testing.T) {
+	for _, w := range []string{"a", "B", "h", "k", "l", "i", "s", "q", "z"} {
+		if got, ok := pickLetter(w); !ok || got != strings.ToUpper(w) {
+			t.Errorf("pickLetter(%q) = %q, %v", w, got, ok)
+		}
+	}
+	for _, w := range []string{"", "left", "esc", "5", "?"} {
+		if _, ok := pickLetter(w); ok {
+			t.Errorf("pickLetter(%q) should not be a letter", w)
+		}
+	}
+}

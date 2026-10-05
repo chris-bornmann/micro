@@ -1,524 +1,193 @@
 package game
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 
-	"micro/server/internal/attributes"
-	"micro/server/internal/item"
 	"micro/server/internal/mapdata"
+	"micro/server/internal/rules"
 )
 
-func TestThrowItemReportsNothingToThrowWhenInventoryIsEmpty(t *testing.T) {
-	m := itemsTestMap()
-	playerJSON := marshalPerson(t, testPerson{ID: "player:1", X: 7, Y: 7, HP: 15})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
+// thrower is a Player at (x, y) with the given Strength, carrying items.
+func thrower(t *testing.T, x, y, strength int, items ...*rules.Entity) *rules.Entity {
+	p := carrying(testPlayer(t, x, y, 15), items...)
+	p.Attrs.Strength = strength
+	return p
+}
 
-	msg, done, err := throwItem(state)
-	if err != nil {
-		t.Fatalf("throwItem: %v", err)
-	}
-	if !done {
-		t.Fatal("expected done=true with an empty inventory")
-	}
-	if msg != "You have nothing to throw." {
-		t.Errorf("got message %q, want %q", msg, "You have nothing to throw.")
+func TestThrowItemReportsNothingToThrowWhenInventoryIsEmpty(t *testing.T) {
+	state := newTestGameState(t, itemsTestMap(), testPlayer(t, 7, 7, 15), nil, nil)
+	if msgs, spent := throwItem(state); !spent || joinMessages(msgs) != "You have nothing to throw." {
+		t.Errorf("got %q", msgs)
 	}
 }
 
 func TestThrowItemMovesStraightToDirectionPromptWithOneCandidate(t *testing.T) {
-	m := itemsTestMap()
-	inv := potionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{ID: "player:1", X: 7, Y: 7, HP: 15, Inventory: []json.RawMessage{inv}})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	msg, done, err := throwItem(state)
-	if err != nil {
-		t.Fatalf("throwItem: %v", err)
+	potion := testItem(t, "healing_potion", 0, 0)
+	state := newTestGameState(t, itemsTestMap(), carrying(testPlayer(t, 7, 7, 15), potion), nil, nil)
+	if msgs, spent := throwItem(state); spent || msgs != nil {
+		t.Fatalf("got %q, spent %v", msgs, spent)
 	}
-	if done || msg != "" {
-		t.Fatalf("expected done=false, msg=\"\" (waiting on a direction), got done=%v msg=%q", done, msg)
-	}
-	if state.PendingSelection == nil || state.PendingSelection.Action != pendingThrow {
-		t.Fatalf("expected a pendingThrow selection, got %+v", state.PendingSelection)
-	}
-	if state.PendingSelection.Item == nil {
-		t.Fatal("expected the sole candidate auto-selected as Item, waiting on a direction")
+	if sel := state.PendingSelection; sel == nil || sel.Action != pendingThrow || sel.Item != potion {
+		t.Fatalf("expected the sole item chosen, waiting on a direction; got %+v", sel)
 	}
 }
 
 func TestThrowItemOpensLetterPickerWithTwoCandidates(t *testing.T) {
-	m := itemsTestMap()
-	inv1 := potionAt(t, m, 0, 0)
-	inv2 := invisibilityPotionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{ID: "player:1", X: 7, Y: 7, HP: 15, Inventory: []json.RawMessage{inv1, inv2}})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	msg, done, err := throwItem(state)
-	if err != nil {
-		t.Fatalf("throwItem: %v", err)
-	}
-	if done || msg != "" {
-		t.Fatalf("expected done=false, msg=\"\" (opening a picker), got done=%v msg=%q", done, msg)
-	}
-	if state.PendingSelection == nil || state.PendingSelection.Item != nil {
-		t.Fatalf("expected a pendingThrow letter picker (Item nil), got %+v", state.PendingSelection)
-	}
-	if len(state.PendingSelection.Candidates) != 2 {
-		t.Fatalf("expected 2 candidates, got %d", len(state.PendingSelection.Candidates))
+	state := newTestGameState(t, itemsTestMap(), carrying(testPlayer(t, 7, 7, 15),
+		testItem(t, "healing_potion", 0, 0), testItem(t, "invisibility_potion", 0, 0)), nil, nil)
+	throwItem(state)
+	if sel := state.PendingSelection; sel == nil || sel.Item != nil || len(sel.Candidates) != 2 {
+		t.Fatalf("expected a letter picker over 2 items, got %+v", sel)
 	}
 }
 
 func TestHandleKeyThrowLetterThenDirectionTwoStageFlow(t *testing.T) {
-	m := itemsTestMap()
-	// Non-Fragile items, so the final "lands on the floor" assertion
-	// below reflects the generic case, not potion-shattering behavior.
-	inv1 := weaponAt(t, m, 0, 0)
-	inv2 := torchAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv1, inv2},
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
+	dagger, torch := testItem(t, "fine_dagger", 0, 0), testItem(t, "torch", 0, 0)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 10, dagger, torch), nil, nil)
 
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
+	mustKey(t, state, "T")
+	mustKey(t, state, "A") // choosing an item spends nothing: it asks for a direction
+	if sel := state.PendingSelection; sel == nil || sel.Item != dagger || len(state.Player.Inventory) != 2 || state.Turn != 0 {
+		t.Fatalf("expected to be waiting on a direction with nothing thrown, got %+v", sel)
 	}
-	if state.PendingSelection == nil || len(state.PendingSelection.Candidates) != 2 {
-		t.Fatalf("expected the letter picker open with 2 candidates, got %+v", state.PendingSelection)
-	}
-
-	// Choosing the first candidate's letter must NOT spend a turn — it
-	// only advances to the direction-waiting stage.
-	if _, err := handleKey(state, "A"); err != nil {
-		t.Fatalf("handleKey(\"A\"): %v", err)
-	}
-	if state.PendingSelection == nil || state.PendingSelection.Item == nil {
-		t.Fatalf("expected the direction-waiting stage after choosing a letter, got %+v", state.PendingSelection)
-	}
-	stillTwo := len(unmarshalPerson(t, state.PlayerState).Inventory)
-	if stillTwo != 2 {
-		t.Fatalf("expected Inventory untouched until a direction is chosen, got %d items", stillTwo)
-	}
-
-	// Now the direction completes the throw and spends the turn.
-	if _, err := handleKey(state, "Right"); err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-	if state.PendingSelection != nil {
-		t.Error("expected the pending selection cleared after the throw completes")
-	}
-	got := unmarshalPerson(t, state.PlayerState)
-	if len(got.Inventory) != 1 {
-		t.Fatalf("expected 1 inventory item left after throwing the other, got %d", len(got.Inventory))
-	}
-	if len(state.FloorItems) != 1 {
-		t.Fatalf("expected the thrown item to land on the floor, got %d floor items", len(state.FloorItems))
+	mustKey(t, state, "Right")
+	if state.PendingSelection != nil || len(state.Player.Inventory) != 1 || len(state.FloorItems) != 1 || state.Turn != 1 {
+		t.Error("expected the dagger thrown onto the floor and the turn spent")
 	}
 }
 
 func TestResolveThrowCancelsOnNonDirectionKey(t *testing.T) {
-	m := itemsTestMap()
-	inv := potionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{ID: "player:1", X: 7, Y: 7, HP: 15, Inventory: []json.RawMessage{inv}})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	if state.PendingSelection == nil || state.PendingSelection.Item == nil {
-		t.Fatalf("expected the direction-waiting stage, got %+v", state.PendingSelection)
-	}
-
-	if _, err := handleKey(state, "X"); err != nil {
-		t.Fatalf("handleKey(\"X\"): %v", err)
-	}
-	if state.PendingSelection != nil {
-		t.Error("expected the pending throw cancelled by a non-direction key")
-	}
-	got := unmarshalPerson(t, state.PlayerState)
-	if len(got.Inventory) != 1 {
-		t.Errorf("expected the item to remain in Inventory after a cancelled throw, got %d items", len(got.Inventory))
-	}
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected no floor item from a cancelled throw, got %d", len(state.FloorItems))
+	state := newTestGameState(t, itemsTestMap(), carrying(testPlayer(t, 7, 7, 15), testItem(t, "healing_potion", 0, 0)), nil, nil)
+	mustKey(t, state, "T")
+	mustKey(t, state, "X")
+	if state.PendingSelection != nil || len(state.Player.Inventory) != 1 || len(state.FloorItems) != 0 || state.Turn != 0 {
+		t.Error("expected the throw cancelled with nothing changed")
 	}
 }
 
-func TestHandleKeyThrowHitsGoblinAndDealsDamage(t *testing.T) {
-	m := itemsTestMap()
-	// weapon.Init's dagger has weight 3, non-Fragile — this test covers
-	// the generic "hits and lands on the floor" case; see
-	// TestHandleKeyThrowPotionShattersOnHit for the Fragile counterpart.
-	// strength 5 => throw.Damage(3, 5) gives base ceil(3/10)=1 + bonus
-	// floor(5/10)=0 = [1,1], a deterministic single point of damage.
-	inv := weaponAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 5},
-	})
-	goblinJSON := marshalMonster(t, testMonster{ID: "goblin:1", X: 9, Y: 7, Kind: "goblin", HP: 5, MaxHP: 5, Aware: true})
-	state := newTestGameState(m, playerJSON, []MonsterState{monster("goblin", goblinJSON)}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
+// A dagger (weight 3) thrown with Strength 5 does throw.Damage [1, 1]: one
+// certain point of damage.
+func TestHandleKeyThrowHitsGoblinAndLandsAtItsFeet(t *testing.T) {
+	g := testMonster(t, "goblin", 9, 7, 5)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 5, testItem(t, "fine_dagger", 0, 0)), []*rules.Entity{g}, nil)
+	mustKey(t, state, "T")
+	mustKey(t, state, "Right")
+	if g.HP != 4 {
+		t.Errorf("expected 1 damage, goblin HP %d", g.HP)
 	}
-	if _, err := handleKey(state, "Right"); err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	got := unmarshalMonster(t, monsterStateOf(t, state, "goblin"))
-	if got.HP != 4 {
-		t.Errorf("expected the goblin to take 1 damage (HP 5 -> 4), got HP %d", got.HP)
-	}
-	if len(state.FloorItems) != 1 {
-		t.Fatalf("expected the thrown item to land on the floor at the impact tile, got %d", len(state.FloorItems))
-	}
-	it, err := itemInfo(state.FloorItems[0])
-	if err != nil {
-		t.Fatalf("itemInfo: %v", err)
-	}
-	if it.X != 9 || it.Y != 7 {
-		t.Errorf("expected the thrown item to land at the goblin's tile (9,7), got (%d,%d)", it.X, it.Y)
+	if len(state.FloorItems) != 1 || state.FloorItems[0].X != 9 || state.FloorItems[0].Y != 7 {
+		t.Error("expected the dagger on the floor where the goblin stands")
 	}
 }
 
-func TestHandleKeyThrowPotionShattersOnHit(t *testing.T) {
-	m := itemsTestMap()
-	inv := potionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 5},
-	})
-	goblinJSON := marshalMonster(t, testMonster{ID: "goblin:1", X: 9, Y: 7, Kind: "goblin", HP: 5, MaxHP: 5, Aware: true})
-	state := newTestGameState(m, playerJSON, []MonsterState{monster("goblin", goblinJSON)}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	msg, err := handleKey(state, "Right")
-	if err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
+func TestHandleKeyThrowPotionShattersOnHitAndOnMiss(t *testing.T) {
+	g := testMonster(t, "goblin", 9, 7, 5)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 5, testItem(t, "healing_potion", 0, 0)), []*rules.Entity{g}, nil)
+	mustKey(t, state, "T")
+	msg := mustKey(t, state, "Right")
+	if g.HP != 4 || len(state.FloorItems) != 0 || !strings.HasPrefix(msg, "You throw the healing potion. | It shatters! | Goblin takes 1 damage") {
+		t.Errorf("hit: HP %d, floor %v, %q", g.HP, names(state.FloorItems), msg)
 	}
 
-	// Damage still applies exactly like the non-Fragile case (see
-	// TestHandleKeyThrowHitsGoblinAndDealsDamage) — only whether the
-	// item survives the impact changes.
-	got := unmarshalMonster(t, monsterStateOf(t, state, "goblin"))
-	if got.HP != 4 {
-		t.Errorf("expected the goblin to take 1 damage (HP 5 -> 4), got HP %d", got.HP)
-	}
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected the shattered potion to NOT land on the floor, got %d floor items", len(state.FloorItems))
-	}
-	if !strings.Contains(msg, "shatters") {
-		t.Errorf("expected a shatter message, got %q", msg)
+	state = newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 10, testItem(t, "healing_potion", 0, 0)), nil, nil)
+	mustKey(t, state, "T")
+	if msg := mustKey(t, state, "Right"); !strings.Contains(msg, "shatters") || len(state.FloorItems) != 0 || len(state.Player.Inventory) != 0 {
+		t.Errorf("miss: %q", msg)
 	}
 }
 
 func TestHandleKeyThrowKillingGoblinDropsCorpseButNotTheShatteredPotion(t *testing.T) {
-	m := itemsTestMap()
-	inv := potionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	goblinJSON := marshalMonster(t, testMonster{ID: "goblin:1", X: 9, Y: 7, Kind: "goblin", HP: 1, MaxHP: 5, Aware: true})
-	state := newTestGameState(m, playerJSON, []MonsterState{monster("goblin", goblinJSON)}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	if _, err := handleKey(state, "Right"); err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	goblinObj, err := monsterObject(monsterStateOf(t, state, "goblin"))
-	if err != nil {
-		t.Fatalf("goblinObject: %v", err)
-	}
-	if !goblinObj.Dead {
-		t.Fatal("expected the goblin dead after a guaranteed-lethal throw")
-	}
-
-	if len(state.FloorItems) != 1 {
-		t.Fatalf("expected exactly 1 floor item (the corpse; the shattered potion should NOT land), got %d", len(state.FloorItems))
-	}
-	it, err := itemInfo(state.FloorItems[0])
-	if err != nil {
-		t.Fatalf("itemInfo: %v", err)
-	}
-	if it.Category != item.CategoryCorpse {
-		t.Errorf("expected the sole floor item to be the corpse, got category %q", it.Category)
+	g := testMonster(t, "goblin", 9, 7, 1)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 10, testItem(t, "healing_potion", 0, 0)), []*rules.Entity{g}, nil)
+	mustKey(t, state, "T")
+	mustKey(t, state, "Right")
+	if !g.Dead || len(state.FloorItems) != 1 || state.FloorItems[0].T.Category != rules.CategoryCorpse {
+		t.Errorf("dead %v, floor %v", g.Dead, names(state.FloorItems))
 	}
 }
 
-func TestHandleKeyThrowPotionShattersOnMiss(t *testing.T) {
-	m := itemsTestMap()
-	inv := potionAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	msg, err := handleKey(state, "Right")
-	if err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	got := unmarshalPerson(t, state.PlayerState)
-	if len(got.Inventory) != 0 {
-		t.Fatalf("expected the item removed from Inventory, got %d left", len(got.Inventory))
-	}
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected the shattered potion to NOT land on the floor even on a clean miss, got %d floor items", len(state.FloorItems))
-	}
-	if !strings.Contains(msg, "shatters") {
-		t.Errorf("expected a shatter message, got %q", msg)
-	}
-}
-
+// A weight-3 dagger thrown with Strength 10 flies 7 cells; from x=7 that
+// is exactly x=14, the room's east edge.
 func TestHandleKeyThrowMissLandsOnFloorAtRestingCell(t *testing.T) {
-	m := itemsTestMap()
-	// weapon.Init's dagger (weight 3, non-Fragile) preserves the original
-	// "a missed throw still lands on the floor" coverage now that
-	// potions shatter instead — see TestHandleKeyThrowPotionShattersOnMiss.
-	inv := weaponAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	if _, err := handleKey(state, "Right"); err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	got := unmarshalPerson(t, state.PlayerState)
-	if len(got.Inventory) != 0 {
-		t.Fatalf("expected the item removed from Inventory, got %d left", len(got.Inventory))
-	}
-	if len(state.FloorItems) != 1 {
-		t.Fatalf("expected exactly 1 floor item (the missed throw), got %d", len(state.FloorItems))
-	}
-	it, err := itemInfo(state.FloorItems[0])
-	if err != nil {
-		t.Fatalf("itemInfo: %v", err)
-	}
-	// itemsTestMap's room spans x:5-14 — a weight-3, strength-10 throw
-	// (distance 7) thrown Right from x=7 travels exactly to x=14, the
-	// room's own east wall (7 steps: 8,9,...,14), so it lands there.
-	if it.X != 14 || it.Y != 7 {
-		t.Errorf("expected the item to land at the room's east wall (14,7), got (%d,%d)", it.X, it.Y)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 10, testItem(t, "fine_dagger", 0, 0)), nil, nil)
+	mustKey(t, state, "T")
+	mustKey(t, state, "Right")
+	if len(state.FloorItems) != 1 || state.FloorItems[0].X != 14 || state.FloorItems[0].Y != 7 {
+		t.Errorf("expected the dagger at (14,7), floor %v", names(state.FloorItems))
 	}
 }
 
 func TestHandleKeyThrowFlaskOfOilIntoWallDisappearsWithNoSideEffect(t *testing.T) {
-	m := itemsTestMap()
-	inv := flaskAt(t, m, 0, 0)
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 5, Y: 5, HP: 15, // room's own top-left interior corner
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	// Up immediately exits the room into unmapped space with no corridor
-	// there — blocked on the very first step.
-	msg, err := handleKey(state, "Up")
-	if err != nil {
-		t.Fatalf("handleKey(\"Up\"): %v", err)
-	}
-
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected no floor item from a flask blocked by a wall, got %d", len(state.FloorItems))
-	}
-	if len(state.OilyTiles) != 0 {
-		t.Errorf("expected no oily tile from a flask blocked by a wall, got %d", len(state.OilyTiles))
-	}
-	if !strings.Contains(msg, "shatters") {
-		t.Errorf("expected a shatter message, got %q", msg)
+	// From the room's top-left corner, Up is a wall on the first step.
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 5, 5, 10, testItem(t, "flask_of_oil", 0, 0)), nil, nil)
+	mustKey(t, state, "T")
+	msg := mustKey(t, state, "Up")
+	if len(state.FloorItems) != 0 || len(state.Oily) != 0 || msg != "You throw the flask of oil. | It shatters against the wall!" {
+		t.Errorf("floor %v, oily %v, %q", names(state.FloorItems), state.Oily, msg)
 	}
 }
 
+// Weight 2 and Strength 1 fly 5 cells: from x=7, open floor at x=12.
 func TestHandleKeyThrowFlaskOfOilOntoOpenFloorMarksTileOily(t *testing.T) {
-	m := itemsTestMap()
-	inv := flaskAt(t, m, 0, 0)
-	// weight 2, strength 1 => throw.Distance == 5 (well within the
-	// room's open interior, x:5-14), so it lands on open ground.
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 1},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 1, testItem(t, "flask_of_oil", 0, 0)), nil, nil)
+	mustKey(t, state, "T")
+	msg := mustKey(t, state, "Right")
+	if len(state.FloorItems) != 0 || !state.Oily[mapdata.Point{X: 12, Y: 7}] || len(state.Oily) != 1 {
+		t.Errorf("floor %v, oily %v", names(state.FloorItems), state.Oily)
 	}
-	msg, err := handleKey(state, "Right")
-	if err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected no floor item from a shattered flask, got %d", len(state.FloorItems))
-	}
-	if !state.OilyTiles[mapdata.Point{X: 12, Y: 7}] {
-		t.Errorf("expected (12,7) marked oily, got OilyTiles=%+v", state.OilyTiles)
-	}
-	if !strings.Contains(msg, "shatters") {
-		t.Errorf("expected a shatter message, got %q", msg)
+	if msg != "You throw the flask of oil. | It shatters, spreading oil across the floor!" {
+		t.Errorf("got %q", msg)
 	}
 }
 
 func TestHandleKeyThrowFlaskOfOilHitsGoblinDealsDamageAndAddsOiliness(t *testing.T) {
-	m := itemsTestMap()
-	inv := flaskAt(t, m, 0, 0)
-	// weight 2, strength 1 => throw.Damage(2, 1) gives base ceil(2/10)=1
-	// + bonus floor(1/10)=0 = [1,1], a deterministic single point of
-	// damage — and throw.Distance == 5, easily enough to reach a target
-	// 2 cells away.
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15,
-		Inventory:  []json.RawMessage{inv},
-		Attributes: attributes.Attributes{Strength: 1},
-	})
-	goblinJSON := marshalMonster(t, testMonster{ID: "goblin:1", X: 9, Y: 7, Kind: "goblin", HP: 5, MaxHP: 5, Aware: true})
-	state := newTestGameState(m, playerJSON, []MonsterState{monster("goblin", goblinJSON)}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
+	g := testMonster(t, "goblin", 9, 7, 5)
+	state := newTestGameState(t, itemsTestMap(), thrower(t, 7, 7, 1, testItem(t, "flask_of_oil", 0, 0)), []*rules.Entity{g}, nil)
+	mustKey(t, state, "T")
+	msg := mustKey(t, state, "Right")
+	if g.HP != 4 || g.Stacks("oily") != 1 || len(state.FloorItems) != 0 || len(state.Oily) != 0 {
+		t.Errorf("HP %d, oily %d, floor %v, oily tiles %v", g.HP, g.Stacks("oily"), names(state.FloorItems), state.Oily)
 	}
-	msg, err := handleKey(state, "Right")
-	if err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
-	}
-
-	got := unmarshalMonster(t, monsterStateOf(t, state, "goblin"))
-	if got.HP != 4 {
-		t.Errorf("expected the goblin to take 1 damage (HP 5 -> 4), got HP %d", got.HP)
-	}
-	if got.Oiliness != 1 {
-		t.Errorf("expected the goblin's Oiliness to become 1, got %d", got.Oiliness)
-	}
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected no floor item from a shattered flask, got %d", len(state.FloorItems))
-	}
-	if len(state.OilyTiles) != 0 {
-		t.Errorf("expected no oily floor tile when the flask hit an agent instead of the floor, got %d", len(state.OilyTiles))
-	}
-	if !strings.Contains(msg, "oil") {
-		t.Errorf("expected an oil-related message, got %q", msg)
+	if !strings.HasPrefix(msg, "You throw the flask of oil. | It shatters, coating them in oil! | Goblin takes 1 damage (4 HP left)") {
+		t.Errorf("got %q", msg)
 	}
 }
 
 func TestHandleKeyThrowLitTorchIgnitesOilyGoblin(t *testing.T) {
-	m := itemsTestMap()
-	litTorch := &testLitTorch{Item: torchAt(t, m, 0, 0), TurnsRemaining: 5}
-	// weight 2, strength 1 => throw.Damage(2, 1) gives [1,1] (deterministic)
-	// and throw.Distance == 5, easily enough to reach a target 2 cells away.
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 7, Y: 7, HP: 15, Lit: true,
-		LitTorch:   litTorch,
-		Attributes: attributes.Attributes{Strength: 1},
-	})
-	goblinJSON := marshalMonster(t, testMonster{ID: "goblin:1", X: 9, Y: 7, Kind: "goblin", HP: 20, MaxHP: 20, Aware: true, Oiliness: 1})
-	state := newTestGameState(m, playerJSON, []MonsterState{monster("goblin", goblinJSON)}, nil)
+	g := testMonster(t, "goblin", 9, 7, 20)
+	g.AddStacks("oily", 1)
+	p := thrower(t, 7, 7, 1)
+	rules.Light(p, carrying(p, testItem(t, "torch", 0, 0)).Inventory[0], 5)
+	state := newTestGameState(t, itemsTestMap(), p, []*rules.Entity{g}, nil)
 
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
+	mustKey(t, state, "T") // the lit torch is the only thing to throw
+	msg := mustKey(t, state, "Right")
+	// It catches this turn but starts burning next turn, so the only
+	// damage so far is the torch's own 1.
+	if g.HP != 19 {
+		t.Errorf("expected HP 19, got %d", g.HP)
 	}
-	msg, err := handleKey(state, "Right")
-	if err != nil {
-		t.Fatalf("handleKey(\"Right\"): %v", err)
+	fire := g.FindTrait("on_fire")
+	if fire == nil || fire.Turns < 1 || fire.Turns > 3 {
+		t.Fatalf("expected one stack of oil to burn 1-3 turns, got %+v", fire)
 	}
-
-	// Ignition happens this turn, but burning starts NEXT turn — so the
-	// only damage this turn is the deterministic throw hit itself (1).
-	got := unmarshalMonster(t, monsterStateOf(t, state, "goblin"))
-	if got.HP != 19 {
-		t.Errorf("expected HP 19 (20 - 1 deterministic throw damage, no burn damage yet), got %d", got.HP)
-	}
-	if !got.Burning {
-		t.Error("expected the goblin to be Burning immediately after ignition")
-	}
-	// Oiliness 1 => fire.Duration is a single 1-3 roll, untouched by the
-	// grace turn.
-	if got.BurningTurnsRemaining < 1 || got.BurningTurnsRemaining > 3 {
-		t.Errorf("expected BurningTurnsRemaining in [1,3], got %d", got.BurningTurnsRemaining)
-	}
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected the lit torch to never land on the floor, got %d floor items", len(state.FloorItems))
+	if len(state.FloorItems) != 0 || state.eng.Reg.Has(p, "light") || !strings.Contains(msg, "The torch goes out and falls apart.") {
+		t.Errorf("the thrown torch should be gone: floor %v, %q", names(state.FloorItems), msg)
 	}
 
-	gotPlayer := unmarshalPerson(t, state.PlayerState)
-	if gotPlayer.LitTorch != nil {
-		t.Errorf("expected LitTorch cleared after throwing it, got %+v", gotPlayer.LitTorch)
-	}
-	if gotPlayer.Lit {
-		t.Error("expected Lit cleared after throwing the lit torch")
-	}
-	if !strings.Contains(msg, "goes out") {
-		t.Errorf("expected the lit-torch-consumed message, got %q", msg)
-	}
-
-	// The NEXT turn is when burning actually starts dealing damage.
-	if _, err := handleKey(state, "."); err != nil {
-		t.Fatalf("handleKey(\".\"): %v", err)
-	}
-	gotAfterNextTurn := unmarshalMonster(t, monsterStateOf(t, state, "goblin"))
-	if gotAfterNextTurn.HP < 15 || gotAfterNextTurn.HP > 17 {
-		t.Errorf("expected HP in [15,17] (19 minus [2,4] burn damage) after the following turn, got %d", gotAfterNextTurn.HP)
+	mustKey(t, state, ".")
+	if g.HP < 15 || g.HP > 17 {
+		t.Errorf("expected 2-4 burn damage the next turn, HP %d", g.HP)
 	}
 }
 
 func TestHandleKeyThrowLitTorchNeverLandsOnFloorEvenBlockedByWall(t *testing.T) {
-	m := itemsTestMap()
-	litTorch := &testLitTorch{Item: torchAt(t, m, 0, 0), TurnsRemaining: 5}
-	playerJSON := marshalPerson(t, testPerson{
-		ID: "player:1", X: 5, Y: 5, HP: 15, Lit: true, // room's own top-left interior corner
-		LitTorch:   litTorch,
-		Attributes: attributes.Attributes{Strength: 10},
-	})
-	state := newTestGameState(m, playerJSON, []MonsterState{deadMonster(t, "goblin")}, nil)
-
-	if _, err := handleKey(state, "T"); err != nil {
-		t.Fatalf("handleKey(\"T\"): %v", err)
-	}
-	// Up immediately exits the room into unmapped space with no corridor
-	// there — blocked on the very first step.
-	msg, err := handleKey(state, "Up")
-	if err != nil {
-		t.Fatalf("handleKey(\"Up\"): %v", err)
-	}
-
-	if len(state.FloorItems) != 0 {
-		t.Errorf("expected the lit torch to never land on the floor even when blocked by a wall, got %d floor items", len(state.FloorItems))
-	}
-	if !strings.Contains(msg, "goes out") {
-		t.Errorf("expected a \"goes out and falls apart\" message, got %q", msg)
-	}
-
-	got := unmarshalPerson(t, state.PlayerState)
-	if got.LitTorch != nil {
-		t.Errorf("expected LitTorch cleared after throwing it, got %+v", got.LitTorch)
+	p := thrower(t, 5, 5, 10)
+	rules.Light(p, carrying(p, testItem(t, "torch", 0, 0)).Inventory[0], 5)
+	state := newTestGameState(t, itemsTestMap(), p, nil, nil)
+	mustKey(t, state, "T")
+	if msg := mustKey(t, state, "Up"); len(state.FloorItems) != 0 || !strings.Contains(msg, "goes out") || p.Lit() != nil {
+		t.Errorf("floor %v, %q", names(state.FloorItems), msg)
 	}
 }

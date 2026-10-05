@@ -1,11 +1,9 @@
-// Package spawn defines the generic contract intelligent entities use to
-// decide their own per-level spawn count — how strongly a monster favors
-// a given dungeon level relative to its own native level, and how that
-// weight turns into either a randomized count (common monsters) or a
-// single-shot yes/no (rare ones). It has no dependency on any specific
-// monster package: goblin/mummy each call these functions with their own
-// tuning, exactly the way action.RollDamage is shared combat math no
-// entity package owns.
+// Package spawn is the math behind how many of a monster appear on a
+// level — how strongly a monster favors a given dungeon level relative to
+// its own native level, and how that weight turns into either a
+// randomized count (common monsters) or a single-shot yes/no (rare ones).
+// Each monster's tuning is data, in its template's spawn: block; see
+// rules.SpawnCount.
 package spawn
 
 import (

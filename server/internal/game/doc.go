@@ -1,7 +1,8 @@
-// Package game is the coordinator: it holds the central game state and drives
-// every other service.
+// Package game is the coordinator: it holds the central game state, turns
+// keypresses into actions, and runs every turn through the rules engine
+// (package rules), which decides what those actions actually do.
 //
-// It is the whole of the server's game logic, and its exported surface is
+// Its exported surface is
 // deliberately four methods wide (see Game). A client gets frames, turn
 // messages, prompts and preformatted text; it never gets a GameState, a
 // level, an item or a monster. Everything that decides what a player is

@@ -19,14 +19,26 @@
       "console": "integratedTerminal"
     },
     {
-      // Both cheats on. They are server flags precisely so a client cannot
+      // Every cheat on. They are server flags precisely so a client cannot
       // ask for them; this is how you turn them on deliberately.
       "name": "mapd (server, cheats on)",
       "type": "go",
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/server/cmd/mapd",
-      "args": ["-addr", ":8080", "-seed", "1234", "-reveal-hidden", "-show-full-map"],
+      "args": ["-addr", ":8080", "-seed", "1234", "-reveal-hidden", "-show-full-map", "-cheat-mode"],
+      "console": "integratedTerminal"
+    },
+    {
+      // A hand-crafted player instead of the built-in one: edit or copy
+      // server/players/example.yaml to set up a scenario.
+      "name": "mapd (server, hand-crafted player)",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/server/cmd/mapd",
+      "cwd": "${workspaceFolder}/server",
+      "args": ["-addr", ":8080", "-player", "players/example.yaml"],
       "console": "integratedTerminal"
     },
     {

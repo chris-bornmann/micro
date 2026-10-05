@@ -4,154 +4,101 @@
 package game
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"micro/server/internal/player"
+	"micro/server/internal/rules"
 	"micro/server/internal/status"
 )
 
-// pickerLines formats candidates as "A) name" lines using
-// candidateLetters — appending " (wielded)"/" (lit)"/" (worn)" for the
-// currently-wielded item, currently-lit torch, or a currently-worn item,
-// if present — shared by the "i" view (inventoryLines) and every open
-// wield/quaff/drop/wear picker, so a player never sees two different
-// letter-to-item mappings for what looks like the same kind of list.
-func pickerLines(candidates []carriedItem) ([]string, error) {
-	letters := candidateLetters(len(candidates))
-	lines := make([]string, len(candidates))
-	for i, ci := range candidates {
-		it, err := itemInfo(ci.Raw)
-		if err != nil {
-			return nil, err
-		}
-		name := it.Name
-		if ci.IsWielded {
-			name += " (wielded)"
-		}
-		if ci.IsLit {
-			name += " (lit)"
-		}
-		if ci.IsWorn {
-			name += " (worn)"
+// candidateLetters returns exactly n letters, "A".."J" for n up to the
+// inventory capacity. Shared by the inventory view and every picker so
+// the two never assign different letters to the same item.
+func candidateLetters(n int) []string {
+	letters := make([]string, n)
+	for i := 0; i < n; i++ {
+		letters[i] = string(rune('A' + i))
+	}
+	return letters
+}
+
+// pickerLines formats items as "A) name" lines, marking whatever the
+// Player has equipped: " (wielded)" in the main hand, " (held)" in the
+// other — either with ", lit" for a burning torch — " (on right hand)" for
+// a ring, or " (worn)". Shared by the inventory view, the look view and every picker,
+// so a player never sees two different letter-to-item mappings for what
+// looks like the same list.
+func pickerLines(state *GameState, items []*rules.Entity) []string {
+	player := state.Player
+	letters := candidateLetters(len(items))
+	lines := make([]string, len(items))
+	for i, it := range items {
+		name := state.Identity.Name(it) // its look, if not yet identified
+		if slot, ok := player.SlotOf(it); ok {
+			lit := ""
+			if player.Lit() == it {
+				lit = ", lit"
+			}
+			switch slot {
+			case rules.SlotWeapon:
+				name += " (wielded" + lit + ")"
+			case rules.SlotOffHand:
+				name += " (held" + lit + ")"
+			case rules.SlotRightHand, rules.SlotLeftHand:
+				name += " (on " + rules.HandName(slot) + ")"
+			default:
+				name += " (worn)"
+			}
 		}
 		lines[i] = fmt.Sprintf("%s) %s", letters[i], name)
 	}
-	return lines, nil
+	return lines
 }
 
-// carriedItems returns everything the Player is carrying: the
-// currently-wielded item first (if any), then the currently-lit torch
-// (if any), then every currently-worn item, then Inventory in order.
-// Shared by inventoryLines (the read-only "i" view) and dropItem (the
-// drop picker), so the two never disagree about what's carried.
-func carriedItems(state *GameState) ([]carriedItem, error) {
-	var items []carriedItem
-	wielded, hasWielded, err := player.WieldedItem(state.PlayerState)
-	if err != nil {
-		return nil, err
+// inventoryLines lists everything the Player carries, equipped items
+// first — the "i" view.
+func inventoryLines(state *GameState) []string {
+	items := state.Player.Carried()
+	if len(items) == 0 {
+		return []string{"You are carrying nothing."}
 	}
-	if hasWielded {
-		items = append(items, carriedItem{Raw: wielded, IsWielded: true})
-	}
-	litTorch, hasLitTorch, err := player.LitTorchItem(state.PlayerState)
-	if err != nil {
-		return nil, err
-	}
-	if hasLitTorch {
-		items = append(items, carriedItem{Raw: litTorch, IsLit: true})
-	}
-	worn, err := player.WornItems(state.PlayerState)
-	if err != nil {
-		return nil, err
-	}
-	for _, raw := range worn {
-		items = append(items, carriedItem{Raw: raw, IsWorn: true})
-	}
-	inv, err := player.Inventory(state.PlayerState)
-	if err != nil {
-		return nil, err
-	}
-	for _, raw := range inv {
-		items = append(items, carriedItem{Raw: raw})
-	}
-	return items, nil
+	return pickerLines(state, items)
 }
 
-// inventoryLines returns one display line per carried item (wielded item
-// first, then Inventory) for the "i" key's read-only view. Unlike
-// pickUp/useItem/equipItem/dropItem, this never mutates
-// state.PlayerState and is never routed through finishTurn — looking at
-// your own inventory doesn't cost a turn.
-func inventoryLines(state *GameState) ([]string, error) {
-	items, err := carriedItems(state)
-	if err != nil {
-		return nil, err
+// lookHereLines lists every item on the Player's tile, stairs included —
+// the "L" view, lettered the same way the pickup picker would be.
+func lookHereLines(state *GameState) []string {
+	var items []*rules.Entity
+	for _, it := range state.floorItemsAt(state.Player.X, state.Player.Y) {
+		if state.noticed(it) {
+			items = append(items, it)
+		}
 	}
 	if len(items) == 0 {
-		return []string{"You are carrying nothing."}, nil
+		return []string{"There is nothing here."}
 	}
-	return pickerLines(items)
+	return pickerLines(state, items)
 }
 
-// lookHereLines returns one display line per item at the Player's
-// current tile — the "L" key's read-only view, following
-// inventoryLines' exact shape (reusing pickerLines/candidateLetters so
-// the lettering a player sees here matches the picker they'd get from
-// "," if they then pick one up). Never mutates state.PlayerState, never
-// routed through finishTurn or handleKey — like "i", looking at the
-// floor costs no turn.
-func lookHereLines(state *GameState) ([]string, error) {
-	playerObj, err := playerObject(state.PlayerState)
-	if err != nil {
-		return nil, err
-	}
-	floorItems, err := floorItemsAt(state, playerObj.X, playerObj.Y)
-	if err != nil {
-		return nil, err
-	}
-	if len(floorItems) == 0 {
-		return []string{"There is nothing here."}, nil
-	}
-	return pickerLines(wrapRaw(floorItems))
-}
-
-// statusLines turns a Status call's raw JSON (a []status.Field) into
-// display lines — generic across every entity kind, since hack never
-// needs to know what any individual field means, only how to show a
-// label/value pair. Used by the "S" key's read-only view.
-func statusLines(fieldsJSON []byte) ([]string, error) {
-	var fields []status.Field
-	if err := json.Unmarshal(fieldsJSON, &fields); err != nil {
-		return nil, fmt.Errorf("parse status: %w", err)
-	}
+// statusLines formats label/value pairs as "Label: value" lines.
+func statusLines(fields []status.Field) []string {
 	lines := make([]string, len(fields))
 	for i, f := range fields {
 		lines[i] = fmt.Sprintf("%s: %s", f.Label, f.Value)
 	}
-	return lines, nil
+	return lines
 }
 
 // hudLines is the Player's own status as the always-visible strip on the
-// game screen, as opposed to statusLines' modal "S" view of the same data.
-// Same source, same formatting, no turn cost — the difference is only where
-// a client chooses to put it.
-//
-// It exists because a roguelike player needs HP on screen permanently, and
-// because sending it pre-formatted keeps the client from having to know what
-// any of these fields mean.
-func hudLines(state *GameState) ([]string, error) {
-	fieldsJSON, err := player.Status(state.PlayerState)
-	if err != nil {
-		return nil, fmt.Errorf("player status: %w", err)
-	}
-	return statusLines(fieldsJSON)
+// game screen, as opposed to the modal "S" view of the same data. Sending
+// it pre-formatted keeps the client from having to know what any of these
+// fields mean.
+func hudLines(state *GameState) []string {
+	return statusLines(state.eng.Reg.Status(state.Player))
 }
 
 // helpLines lists every player-visible command with a short description,
-// for the "?" key's read-only view — kept in sync with handleKey's switch
-// (below), player.Action's key cases, and the SetOnTypedKey/SetOnTypedRune
-// callbacks by hand, since none of those are enumerable at runtime.
+// for the "?" view — kept in sync with handleKeyMessages by hand, since
+// neither is enumerable at runtime.
 func helpLines() []string {
 	return []string{
 		"Arrow keys — Move (attacks if the destination is occupied)",

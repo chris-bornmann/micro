@@ -1,8 +1,7 @@
-// Package mapgen is the map-generation service: it holds Config and the
-// procedural Generate algorithm. The map's data types and pure query/
-// movement functions live in mapdata, a neutral shared library — mapgen
-// depends on mapdata like everyone else does, rather than being the
-// thing other services' "shared library" secretly was.
+// Package mapgen generates levels: it holds Config and the procedural
+// Generate algorithm. The map's data types and pure query/movement
+// functions live in mapdata, a neutral shared library — mapgen depends on
+// mapdata like everyone else does.
 package mapgen
 
 import (

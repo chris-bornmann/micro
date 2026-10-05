@@ -41,3 +41,27 @@ func TestNextStepSamePointIsNotOK(t *testing.T) {
 		t.Error("expected NextStep to report no move needed when start equals target")
 	}
 }
+
+// TestRouteGoesAroundBlockedTiles: in an open room, a blocked tile on the
+// straight line is walked around, two steps longer; the destination
+// itself is never treated as blocked.
+func TestRouteGoesAroundBlockedTiles(t *testing.T) {
+	m := Map{Width: 20, Height: 20, Rooms: []Room{{ID: 0, X: 5, Y: 5, W: 10, H: 10}}}
+	direct, n, ok := m.Route(6, 10, 8, 10, nil)
+	if !ok || direct != (Point{X: 7, Y: 10}) || n != 2 {
+		t.Fatalf("direct: step %v, length %d, ok %v", direct, n, ok)
+	}
+	blocked := func(x, y int) bool { return (x == 7 && y == 10) || (x == 8 && y == 10) }
+	step, k, ok := m.Route(6, 10, 8, 10, blocked)
+	if !ok || step.X != 6 || (step.Y != 9 && step.Y != 11) || k != 4 {
+		t.Errorf("around: step %v, length %d, ok %v; want a step off the line and length 4", step, k, ok)
+	}
+}
+
+func TestRouteFailsWhenEveryWayIsBlocked(t *testing.T) {
+	m := geometryTestMap()
+	// The corridor is a single file: blocking its first tile cuts it.
+	if _, _, ok := m.Route(7, 7, 12, 7, func(x, y int) bool { return x == 10 && y == 7 }); ok {
+		t.Error("expected no route through a blocked door")
+	}
+}

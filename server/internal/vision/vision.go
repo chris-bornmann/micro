@@ -1,7 +1,5 @@
-// Package vision will eventually be its own standalone Vision/Lighting
-// microservice: a pure function of map data and a viewer's position, no
-// entity-private state, called one-way from hack exactly like
-// action.RollDamage or item's helpers.
+// Package vision decides what a viewer can see right now: a pure function
+// of the map, where the viewer stands, and whether they carry a light.
 package vision
 
 import "micro/server/internal/mapdata"
@@ -11,10 +9,14 @@ import "micro/server/internal/mapdata"
 // about CurrentlyLit's contract or its callers.
 const DarkRadius = 1
 
+// TorchRadius is how far a lit torch reaches in a walled room (a maze),
+// where it cannot light the whole room at once: the walls are in the way.
+const TorchRadius = 3
+
 // CurrentlyLit reports the tiles actually visible to a viewer standing
 // at (x,y) THIS instant, accounting for darkness — distinct from
 // permanent fog-of-war "ever explored" memory, which stays the
-// coordinator's own concern (hack's Visibility, untouched by this
+// coordinator's own concern (game.Visibility, untouched by this
 // package). ok is false whenever nothing restricts vision at (x,y) — a
 // lit room, a corridor, or nowhere recognized — meaning the caller's
 // normal fog-of-war rules apply unchanged. When ok is true, tiles is
@@ -26,11 +28,26 @@ const DarkRadius = 1
 // keep working through the existing, separate fog-of-war path). With
 // torchLit true, tiles is every tile of the room instead (see
 // mapdata.Room.Tiles) — a lit torch lifts the radius restriction
-// entirely for as long as it burns.
+// entirely for as long as it burns — except in a Walled room (a maze),
+// where light reaches DarkRadius, or TorchRadius with a torch, and only
+// along clear lines of sight (mapdata.Map.Clear).
 func CurrentlyLit(m mapdata.Map, x, y int, torchLit bool) (tiles []mapdata.Point, room mapdata.Room, ok bool) {
 	r, found := m.RoomAt(x, y)
 	if !found || !r.Dark {
 		return nil, mapdata.Room{}, false
+	}
+	if r.Walled {
+		// A maze: light reaches only so far, and not round corners.
+		radius := DarkRadius
+		if torchLit {
+			radius = TorchRadius
+		}
+		for _, p := range m.TilesWithinRadius(x, y, radius) {
+			if pr, ok := m.RoomAt(p.X, p.Y); ok && pr.ID == r.ID && m.Clear(x, y, p.X, p.Y) {
+				tiles = append(tiles, p)
+			}
+		}
+		return tiles, r, true
 	}
 	if torchLit {
 		return r.Tiles(), r, true
@@ -45,7 +62,7 @@ func CurrentlyLit(m mapdata.Map, x, y int, torchLit bool) (tiles []mapdata.Point
 
 // CurrentlyVisible returns every tile currently visible to a viewer
 // standing at (x,y) this instant — the set a movable object must be
-// standing on to be shown at all (see hack.Visibility.filterObjects), as
+// standing on to be shown at all (see game.Visibility.filterObjects), as
 // opposed to a Fixed object's permanent ever-visited memory. For a Dark
 // room this defers entirely to CurrentlyLit (radius-limited, or the
 // whole room if torchLit). Otherwise it's every room (x,y) counts as

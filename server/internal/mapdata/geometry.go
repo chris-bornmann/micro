@@ -55,7 +55,11 @@ func (m Map) TilesWithinRadius(x, y, radius int) []Point {
 func (m Map) WalkableTiles() []Point {
 	var tiles []Point
 	for _, r := range m.Rooms {
-		tiles = append(tiles, r.Tiles()...)
+		for _, p := range r.Tiles() {
+			if !m.IsWall(p.X, p.Y) {
+				tiles = append(tiles, p)
+			}
+		}
 	}
 	for _, c := range m.Corridors {
 		tiles = append(tiles, c.Path...)
@@ -84,4 +88,26 @@ func (m Map) RoomsAt(x, y int) map[int]bool {
 		}
 	}
 	return rooms
+}
+
+// RevealDoorAt turns a hidden door at (x, y) into an ordinary one, for
+// good, reporting whether there was one to reveal. Two corridors may share
+// a door's position, and Doors keeps a copy of every door, so every match
+// is updated.
+func (m *Map) RevealDoorAt(x, y int) bool {
+	found := false
+	reveal := func(d *Door) {
+		if d.Hidden && d.X == x && d.Y == y {
+			d.Hidden = false
+			found = true
+		}
+	}
+	for i := range m.Corridors {
+		reveal(&m.Corridors[i].DoorA)
+		reveal(&m.Corridors[i].DoorB)
+	}
+	for i := range m.Doors {
+		reveal(&m.Doors[i])
+	}
+	return found
 }

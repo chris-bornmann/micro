@@ -183,10 +183,10 @@ func TestFilterObjectsHidesUnvisitedAndShowsVisitedFixedObjects(t *testing.T) {
 	v := newVisibility()
 	v.reveal(&m, 7, 7) // only room A visited so far
 
-	inA := overlay.Object{ID: "stairs:1", X: 7, Y: 7, Fixed: true}
-	inB := overlay.Object{ID: "stairs:2", X: 18, Y: 7, Fixed: true} // room B, unvisited
+	inA := sighting{Object: overlay.Object{ID: "stairs:1", X: 7, Y: 7}, Fixed: true}
+	inB := sighting{Object: overlay.Object{ID: "stairs:2", X: 18, Y: 7}, Fixed: true} // room B, unvisited
 
-	visible := v.filterObjects(&m, []overlay.Object{inA, inB}, nil)
+	visible := v.filterObjects(&m, []sighting{inA, inB}, nil)
 	if len(visible) != 1 || visible[0].ID != "stairs:1" {
 		t.Errorf("expected only the object in the visited room, got %+v", visible)
 	}
@@ -194,7 +194,7 @@ func TestFilterObjectsHidesUnvisitedAndShowsVisitedFixedObjects(t *testing.T) {
 	v.reveal(&m, 12, 7) // walk the corridor
 	v.reveal(&m, 18, 7) // enter room B
 
-	visible = v.filterObjects(&m, []overlay.Object{inA, inB}, nil)
+	visible = v.filterObjects(&m, []sighting{inA, inB}, nil)
 	if len(visible) != 2 {
 		t.Errorf("expected both objects visible once room B is revealed, got %+v", visible)
 	}
@@ -213,11 +213,11 @@ func TestFilterObjectsShowsMovableObjectsFromDoorThreshold(t *testing.T) {
 	v.reveal(&m, 7, 7)  // visited room A
 	v.reveal(&m, 12, 7) // and walked partway down the corridor
 
-	inB := overlay.Object{ID: "goblin:1", X: 18, Y: 7} // inside room B (never entered yet)
+	inB := sighting{Object: overlay.Object{ID: "goblin:1", X: 18, Y: 7}} // inside room B (never entered yet)
 
 	// Standing exactly on room B's door (15,7), not yet inside it.
 	currentlyVisible := vision.CurrentlyVisible(m, 15, 7, false)
-	visible := v.filterObjects(&m, []overlay.Object{inB}, currentlyVisible)
+	visible := v.filterObjects(&m, []sighting{inB}, currentlyVisible)
 	if len(visible) != 1 || visible[0].ID != "goblin:1" {
 		t.Errorf("expected the object in room B visible from its threshold alone, got %+v", visible)
 	}
@@ -236,13 +236,13 @@ func TestFilterObjectsHidesMovableObjectsOnceOutOfCurrentView(t *testing.T) {
 	v.reveal(&m, 12, 7) // walk the corridor
 	v.reveal(&m, 18, 7) // visit room B; both rooms now permanently revealed
 
-	inA := overlay.Object{ID: "goblin:1", X: 7, Y: 7} // movable (Fixed unset)
-	inB := overlay.Object{ID: "goblin:2", X: 18, Y: 7}
+	inA := sighting{Object: overlay.Object{ID: "goblin:1", X: 7, Y: 7}} // movable
+	inB := sighting{Object: overlay.Object{ID: "goblin:2", X: 18, Y: 7}}
 
 	// Currently standing in room A only: room B's occupant must be
 	// hidden, even though room B itself was visited a moment ago.
 	roomATiles := mapdata.Room{ID: 0, X: 5, Y: 5, W: 5, H: 5}.Tiles()
-	visible := v.filterObjects(&m, []overlay.Object{inA, inB}, roomATiles)
+	visible := v.filterObjects(&m, []sighting{inA, inB}, roomATiles)
 	if len(visible) != 1 || visible[0].ID != "goblin:1" {
 		t.Errorf("expected only the object in the currently-viewed room, got %+v", visible)
 	}
@@ -250,7 +250,7 @@ func TestFilterObjectsHidesMovableObjectsOnceOutOfCurrentView(t *testing.T) {
 	// Now standing in room B instead: room A's occupant must be hidden,
 	// symmetric with the above — memory of room A no longer matters.
 	roomBTiles := mapdata.Room{ID: 1, X: 16, Y: 5, W: 5, H: 5}.Tiles()
-	visible = v.filterObjects(&m, []overlay.Object{inA, inB}, roomBTiles)
+	visible = v.filterObjects(&m, []sighting{inA, inB}, roomBTiles)
 	if len(visible) != 1 || visible[0].ID != "goblin:2" {
 		t.Errorf("expected only the object in the currently-viewed room, got %+v", visible)
 	}

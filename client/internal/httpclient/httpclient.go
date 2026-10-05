@@ -55,6 +55,8 @@ type PromptKind string
 const (
 	PromptChoose    PromptKind = "choose"
 	PromptDirection PromptKind = "direction"
+	// PromptCharacter wants one character, sent exactly as typed.
+	PromptCharacter PromptKind = "character"
 )
 
 // Prompt is a pending interaction whose lines are already formatted. The

@@ -19,6 +19,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"micro/client/internal/ansi"
 	"micro/client/internal/httpclient"
@@ -72,6 +73,9 @@ func main() {
 	out.Flush()
 
 	in := bufio.NewScanner(os.Stdin)
+	// The open prompt's kind, if any: a lone letter answers "choose"; a
+	// lone character, exactly as typed, answers "character".
+	var prompt httpclient.PromptKind
 	for {
 		fmt.Fprint(out, "\n> ")
 		out.Flush()
@@ -83,12 +87,19 @@ func main() {
 		if word == "" {
 			continue
 		}
-		if word == "quit" || word == "q" {
+		key, answered := "", false
+		switch prompt {
+		case httpclient.PromptChoose:
+			key, answered = pickLetter(word)
+		case httpclient.PromptCharacter:
+			key, answered = word, utf8.RuneCountInString(word) == 1
+		}
+		if !answered && (word == "quit" || word == "q") {
 			break
 		}
 
 		// A read-only view costs no turn, so it does not go through Command.
-		if name, ok := viewFor[strings.ToLower(word)]; ok {
+		if name, ok := viewFor[strings.ToLower(word)]; ok && !answered {
 			v, err := c.View(name)
 			if err != nil {
 				fmt.Fprintln(out, "error:", err)
@@ -101,15 +112,21 @@ func main() {
 			continue
 		}
 
-		key := word
-		if mapped, ok := keyFor[strings.ToLower(word)]; ok {
-			key = mapped
+		if !answered {
+			key = word
+			if mapped, ok := keyFor[strings.ToLower(word)]; ok {
+				key = mapped
+			}
 		}
 
 		resp, err := c.Command(key)
 		if err != nil {
 			fmt.Fprintln(out, "error:", err)
 			continue
+		}
+		prompt = ""
+		if resp.Prompt != nil {
+			prompt = resp.Prompt.Kind
 		}
 
 		// A prompt means no turn passed, so there is no new frame and the
@@ -139,6 +156,17 @@ func main() {
 			break
 		}
 	}
+}
+
+// pickLetter reads word as the answer to a "choose" prompt: any single
+// letter, in either case, is sent upper-cased as the item letter it names —
+// even one that is also a shortcut, like "h" or "i" or "q". A letter no
+// item has reaches the server, which closes the prompt.
+func pickLetter(word string) (string, bool) {
+	if len(word) == 1 && ('a' <= word[0] && word[0] <= 'z' || 'A' <= word[0] && word[0] <= 'Z') {
+		return strings.ToUpper(word), true
+	}
+	return "", false
 }
 
 // render draws one frame: the board, the HUD, and whatever the turn had to say.

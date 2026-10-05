@@ -38,6 +38,7 @@ func main() {
 	url := flag.String("url", "http://localhost:8080", "server address")
 	seed := flag.Int64("seed", 0, "seed for a reproducible opening state (0 = let the server choose)")
 	cellSize := flag.Int("cell-size", 16, "pixel size of each tile")
+	brightness := flag.Float64("brightness", 1.6, "lift dark colors so glyphs are easier to see (1 = colors exactly as the server sent them)")
 	wait := flag.Duration("wait", 5*time.Second, "how long to wait for the server to come up")
 	flag.Parse()
 
@@ -59,7 +60,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, "hackgui:", err)
 			os.Exit(1)
 		}
-		return grid
+		return render.Brighten(grid, *brightness)
 	}
 
 	initial, err := c.NewGame(seed)
@@ -112,6 +113,11 @@ func main() {
 	// while one is shown).
 	var activeDialog dialog.Dialog
 	var activeDialogIsPicker bool
+	// answering tracks an open "character" prompt: its answer is the rune
+	// typed, case and all, so it comes from SetOnTypedRune — a key name is
+	// "T" for both t and T — but never the rune of the keystroke that
+	// opened it (see answerGate).
+	var answering answerGate
 
 	hideDialog := func() {
 		if activeDialog != nil {
@@ -155,6 +161,7 @@ func main() {
 		// showModal hides any existing dialog first: a picker resolving into
 		// another picker (a throw's item letter resolving into its direction
 		// prompt) would otherwise orphan the first one on screen.
+		answering.update(resp.Prompt != nil && resp.Prompt.Kind == httpclient.PromptCharacter, key)
 		if resp.Prompt != nil {
 			showModal(resp.Prompt.Title, strings.Join(resp.Prompt.Lines, "\n"), true)
 			statusBar.SetText(text)
@@ -183,7 +190,7 @@ func main() {
 	// this is the exact bug "." had before this guard existed. So every
 	// key in this set must be ignored by SetOnTypedRune and handled by
 	// SetOnTypedKey only. This does NOT cover the picker's dynamic
-	// candidate letters (B-J) — those are handled by unconditionally
+	// candidate letters (A-Z) — those are handled by unconditionally
 	// skipping SetOnTypedRune entirely while a picker is open, below.
 	gameKeysHandledByTypedKey := map[rune]bool{'.': true, ',': true, 'a': true, 'A': true, 'e': true, 'E': true, 'i': true, 'I': true, 'd': true, 'D': true, 'l': true, 'L': true, 't': true, 'T': true, 's': true, 'S': true}
 
@@ -206,8 +213,14 @@ func main() {
 	}
 
 	w.Canvas().SetOnTypedRune(func(r rune) {
+		if answering.open {
+			if answering.answer(r) {
+				dispatch(string(r), string(r))
+			}
+			return
+		}
 		// While a picker is open, every key (including its dynamic
-		// candidate letters B-J, which aren't in gameKeysHandledByTypedKey
+		// candidate letters A-Z, which aren't in gameKeysHandledByTypedKey
 		// since they're not fixed game commands) must reach SetOnTypedKey
 		// only — otherwise this callback's fallthrough status-text branch
 		// below would stomp the message dispatch just set, reproducing
@@ -277,6 +290,11 @@ func main() {
 			return
 		}
 		if modifierKeys[ev.Name] {
+			return
+		}
+		// A character prompt is answered by the rune (SetOnTypedRune);
+		// Escape, handled above, is the only key that cancels it here.
+		if answering.open {
 			return
 		}
 		// Shift+,/Shift+./Shift+/ produce '<'/'>'/'?', which SetOnTypedRune

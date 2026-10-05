@@ -78,6 +78,10 @@ nothing.
 `POST /v1/games/{id}/commands` replays a script in one round trip. It exists so
 a bug report can be four lines of JSON; the clients do not use it.
 
+A `game_id` is opaque: 128 random bits, hex-encoded. Nothing else stands
+between a game and anyone who can reach the server, so it must be unguessable;
+clients must not parse it or assume its form.
+
 ### Keys
 
 Exactly the names the game has always used, which are Fyne's key names:
@@ -88,8 +92,8 @@ Up  Down  Left  Right  .  ,  <  >  A  E  D  T  Escape
 
 plus `A`–`J` while a prompt is open.
 
-An **unrecognized key is not an error**. It falls through to the player service
-and costs a turn, exactly as pressing an unbound key always has. Validating
+An **unrecognized key is not an error**. It falls through to the game and
+costs a turn, exactly as pressing an unbound key always has. Validating
 here would mean maintaining a whitelist that can silently drift out of step
 with the command switch.
 
@@ -121,16 +125,24 @@ still correct.
 ```json
 { "kind": "choose",    "title": "Choose one", "lines": ["A) short sword (wielded)", "B) torch"] }
 { "kind": "direction", "title": "Throw",      "lines": ["Throw the flask of oil — which direction?"] }
+{ "kind": "character", "title": "Scroll of summon monster", "lines": ["Summon which monster? Type its letter."] }
 ```
 
 `lines` arrive already formatted, so a client never learns what an item, a
 category or a pending action is. It shows the lines and sends back whatever key
-was pressed: a matching letter or direction resolves the prompt, and **anything
-else cancels it**. Either way the next response says what happened, so a client
-need model no prompt state beyond "is one open".
+was pressed: a matching letter, direction or character resolves the prompt, and
+**anything else cancels it**. Either way the next response says what happened,
+so a client need model no prompt state beyond "is one open" and its `kind`.
 
-`kind` is a hint. A client may ignore it and just show `lines`; it exists so a
-richer one can draw arrow-key affordances instead of a list.
+| `kind` | Answer |
+|---|---|
+| `choose` | One of the letters `lines` is keyed by. Case doesn't matter. |
+| `direction` | `Up`, `Down`, `Left` or `Right`. |
+| `character` | Any single character, sent **exactly as typed**: case matters (`t` and `T` are different monsters). `Escape`, or any other multi-character key name, cancels. |
+
+A client may otherwise ignore `kind` and just show `lines` — except that for a
+`character` prompt it must send the typed character itself, not a key name
+(Fyne's `"T"` for both t and T, say).
 
 A **`frame`** means the turn resolved. `messages` carries that turn's text in
 order — an attack outcome, an item confirmation, an effect wearing off, each
@@ -145,6 +157,15 @@ monster's move. Join them however you like; the desktop client joins with
 Views cost no turn and mutate nothing — looking at your own inventory is not an
 action. `lines` are preformatted and `title` is the caption to show them under,
 so a second client cannot title a view differently from the first.
+
+## Calling from a browser (CORS)
+
+`mapd -cors-origin http://localhost:5173,https://play.example` lets web pages
+from exactly those origins call the API. A matching `Origin` gets
+`Access-Control-Allow-Origin` (never `*`, never credentials) and the preflight a
+JSON `POST` triggers is answered `204`; any other origin is refused. Without the
+flag there are no CORS headers at all, and only same-origin pages and
+non-browser clients can call the API.
 
 ## Errors
 

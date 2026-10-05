@@ -1,8 +1,8 @@
 // Package mapdata defines the map's data types and pure query/movement
 // functions — a neutral library with no generation logic in it. It exists
-// so that entity services (player, goblin, ...) never need to depend on
-// mapgen (the map-generation service's own codebase); they depend on this
-// instead, exactly as mapgen itself does.
+// so that the rules engine and the coordinator never need to depend on
+// mapgen's generator; they depend on this instead, exactly as mapgen
+// itself does.
 package mapdata
 
 // Point is a single tile coordinate.
@@ -18,6 +18,10 @@ type Room struct {
 	X, Y int
 	W, H int
 	Dark bool
+	// Walled means walls stand inside the room (Map.Walls): a maze, or a
+	// hand-drawn hall split up. Sight and light inside it then follow
+	// lines of sight (see Map.Clear) rather than filling the room.
+	Walled bool
 	// CorridorIDs lists every Corridor touching this room, for O(1) graph
 	// traversal (index into Map.Corridors).
 	CorridorIDs []int
@@ -63,4 +67,7 @@ type Map struct {
 	// Doors is a flattened convenience copy of every corridor's DoorA/DoorB.
 	Doors []Door
 	Seed  int64
+	// Walls are wall tiles inside rooms — what makes a maze of one big
+	// room. Nothing walks onto them; nil on an ordinary level.
+	Walls map[Point]bool
 }

@@ -11,12 +11,11 @@ package game
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 
-	"micro/server/internal/item"
 	"micro/server/internal/mapgen"
-	"micro/server/internal/player"
-	"micro/server/internal/vision"
+	"micro/server/internal/rules"
 )
 
 // Game is one playthrough: the coordinator's state plus the server-side
@@ -24,7 +23,7 @@ import (
 //
 // Every method takes mu for its whole body. That is not defensive
 // programming — handleKeyMessages mutates GameState transitively
-// (PlayerState, each monster's State, Visited, OilyTiles, Levels) and
+// (the Player, every monster, Visited, Oily, Levels) and
 // descending a staircase can call mapgen.Generate mid-request, while
 // net/http serves every request on its own goroutine. Without the lock two
 // overlapping keypresses corrupt the level.
@@ -61,6 +60,9 @@ const (
 	PromptChoose PromptKind = "choose"
 	// PromptDirection expects "Up", "Down", "Left" or "Right".
 	PromptDirection PromptKind = "direction"
+	// PromptCharacter expects any single character, sent exactly as typed
+	// — case matters: "t" and "T" are different monsters.
+	PromptCharacter PromptKind = "character"
 )
 
 // Prompt is a pending interaction, fully rendered.
@@ -85,56 +87,92 @@ type View struct {
 	Lines []string `json:"lines"`
 }
 
+// cheatModeHP is the Player's starting (and maximum) HP in cheat mode.
+const cheatModeHP = 1000
+
 // NewGame starts a playthrough: generate level 1, create the Player, and
-// reveal what they can see from where they are standing.
-//
-// This is main()'s former startup block, with each os.Exit(1) turned into a
-// returned error — a server must answer a bad request, not die of it.
-func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
+// reveal what they can see from where they are standing. revealHidden,
+// showFullMap and cheatMode are the server's cheat switches; cheatMode
+// starts the Player on cheatModeHP.
+func NewGame(cfg mapgen.Config, revealHidden, showFullMap, cheatMode bool) (*Game, error) {
+	eng, err := engine()
+	if err != nil {
+		return nil, err
+	}
 	spawnedOnce := map[string]bool{}
-	ls, err := populateLevel(cfg, 1, spawnedOnce)
+	special := assignSpecial(eng.Cat.Levels, cfg.Seed)
+	ls, err := makeLevel(eng, cfg, 1, spawnedOnce, special[1])
 	if err != nil {
 		return nil, err
 	}
 
-	playerState, err := initPlayer(ls.Map)
-	if err != nil {
-		return nil, err
+	// The Player materializes somewhere in the room with the stairs up —
+	// the way into the dungeon — just as on every later level they arrive
+	// on them. The tile and their stats come from the level's own seed, so
+	// a given seed reproduces the same start.
+	up := stairsAmong(ls.FloorItems, "up")
+	if up == nil {
+		return nil, fmt.Errorf("level 1 has no stairs up to start the Player by")
 	}
-	p, err := playerObject(playerState)
-	if err != nil {
-		return nil, err
+	room, ok := ls.Map.RoomAt(up.X, up.Y)
+	if !ok {
+		return nil, fmt.Errorf("level 1's stairs up at (%d,%d) are not in a room", up.X, up.Y)
 	}
-
-	// Relocate the flask near the Player's spawn point — a level-1-only
-	// startup nicety (so it's immediately findable for testing) that
-	// isn't generalized to every level populateLevel builds afterward.
-	//
-	// Seeded from the map's own seed, like every other spawn-time
-	// placement, so that a given seed reproduces a given opening
-	// position. The offset keeps this stream from correlating with the
-	// item/stairs/spawn-count streams populateLevel derives the same way.
-	relocateRNG := rand.New(rand.NewSource(ls.Map.Seed + 37))
-	for i, raw := range ls.FloorItems {
-		it, err := itemInfo(raw)
-		if err != nil {
-			return nil, err
+	// Never on a monster or a trap: redraw from the same stream until the
+	// tile is free (a room with no free tile would be a broken level).
+	playerTemplates := eng.Cat.ByCategory(rules.CategoryPlayer)
+	rng := rand.New(rand.NewSource(ls.Map.Seed))
+	w := &rules.World{Map: ls.Map, Monsters: ls.Monsters}
+	x, y := room.X+rng.Intn(room.W), room.Y+rng.Intn(room.H)
+	for tries := 0; w.CreatureAt(x, y) != nil || trapAt(ls.FloorItems, x, y) || ls.Map.IsWall(x, y); tries++ {
+		if tries == room.W*room.H*10 {
+			return nil, fmt.Errorf("level 1's starting room has no free tile")
 		}
-		if it.Category != item.CategoryFlask {
+		x, y = room.X+rng.Intn(room.W), room.Y+rng.Intn(room.H)
+	}
+	if room.Walled {
+		// A maze is one room: anywhere in it would skip the maze. Start on
+		// the way in.
+		x, y = up.X, up.Y
+	}
+	// Create, not New: a hand-crafted player starts with the equipment and
+	// pack its template lists. It rolls HP and attributes first, from the
+	// same stream, so a given seed's player is what it always was.
+	p := eng.Create(playerTemplates[0], x, y, rng, nil)
+	if cheatMode {
+		// MaxHP too, so healing tops back up to it rather than capping
+		// at the rolled value.
+		p.HP, p.MaxHP = cheatModeHP, cheatModeHP
+	}
+
+	// Move the flask of oil next to the Player — a level-1-only startup
+	// nicety, so it is immediately findable. Seeded from the map's seed
+	// like every other spawn-time placement; the offset keeps this stream
+	// from correlating with the others derived the same way.
+	relocateRNG := rand.New(rand.NewSource(ls.Map.Seed + 37))
+	for _, it := range ls.FloorItems {
+		if it.T.Category != rules.CategoryFlask {
 			continue
 		}
 		if x, y, ok := tileNearPlayer(ls.Map, p.X, p.Y, relocateRNG); ok {
-			relocated, err := relocateItem(raw, x, y)
-			if err != nil {
-				return nil, err
-			}
-			ls.FloorItems[i] = relocated
+			it.X, it.Y = x, y
 		}
 		break
 	}
 
+	// Which look goes with which item type, dealt afresh for every game —
+	// seeded from the map like everything else, so a -seed reproduces it.
+	// The Player knows their own starting kit.
+	identity := rules.NewIdentity(eng.Cat, rand.New(rand.NewSource(ls.Map.Seed+41)))
+	for _, it := range p.Carried() {
+		identity.Identify(it.T.ID)
+	}
+
 	state := &GameState{
-		PlayerState:  playerState,
+		Special:      special,
+		Identity:     identity,
+		eng:          eng,
+		Player:       p,
 		CurrentLevel: 1,
 		Levels:       make([]*levelState, maxLevels),
 		LevelConfig:  cfg,
@@ -142,10 +180,7 @@ func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
 		levelState:   ls,
 	}
 	state.Levels[0] = ls
-
-	state.Visited.reveal(state.Map, p.X, p.Y)
-	initialLitTiles, _, _ := vision.CurrentlyLit(*state.Map, p.X, p.Y, p.Lit)
-	state.Visited.rememberLitTiles(initialLitTiles)
+	revealAroundPlayer(state)
 
 	return &Game{state: state, reveal: revealHidden, full: showFullMap}, nil
 }
@@ -155,7 +190,7 @@ func NewGame(cfg mapgen.Config, revealHidden, showFullMap bool) (*Game, error) {
 func (g *Game) Frame() (Frame, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return buildFrame(g.state, g.state.Turn, g.reveal, g.full)
+	return buildFrame(g.state, g.state.Turn, g.reveal, g.full), nil
 }
 
 // Command applies one keypress.
@@ -173,16 +208,11 @@ func (g *Game) Command(key string) (CommandResponse, error) {
 		return CommandResponse{}, err
 	}
 
-	if prompt, err := g.pendingPrompt(); err != nil {
-		return CommandResponse{}, err
-	} else if prompt != nil {
+	if prompt := g.pendingPrompt(); prompt != nil {
 		return CommandResponse{Prompt: prompt}, nil
 	}
 
-	f, err := buildFrame(g.state, g.state.Turn, g.reveal, g.full)
-	if err != nil {
-		return CommandResponse{}, err
-	}
+	f := buildFrame(g.state, g.state.Turn, g.reveal, g.full)
 	return CommandResponse{Messages: messages, Frame: &f}, nil
 }
 
@@ -193,31 +223,36 @@ func (g *Game) Command(key string) (CommandResponse, error) {
 // deciding between a letter picker and a throw's direction prompt, and
 // formatting either. It belongs here because both decisions need item names
 // and candidate lettering, which is to say they need the game.
-func (g *Game) pendingPrompt() (*Prompt, error) {
+func (g *Game) pendingPrompt() *Prompt {
 	sel := g.state.PendingSelection
 	if sel == nil {
-		return nil, nil
+		return nil
 	}
 
-	// A throw whose item is already chosen is waiting on a direction, not a
-	// letter.
+	// An item already chosen is waiting on the answer to its question, or —
+	// for a throw — a direction, not a letter.
+	if sel.Action == pendingUseOn {
+		return &Prompt{Kind: PromptChoose, Title: sel.Question, Lines: pickerLines(g.state, sel.Candidates)}
+	}
+	if sel.Action == pendingAnswer {
+		return &Prompt{Kind: PromptCharacter, Title: capitalized(g.state.Identity.Name(sel.Item)), Lines: []string{sel.Question}}
+	}
 	if sel.Item != nil {
-		it, err := itemInfo(sel.Item.Raw)
-		if err != nil {
-			return nil, err
-		}
 		return &Prompt{
 			Kind:  PromptDirection,
 			Title: "Throw",
-			Lines: []string{fmt.Sprintf("Throw the %s — which direction?", it.Name)},
-		}, nil
+			Lines: []string{fmt.Sprintf("Throw the %s — which direction?", g.state.Identity.Name(sel.Item))},
+		}
 	}
+	return &Prompt{Kind: PromptChoose, Title: "Choose one", Lines: pickerLines(g.state, sel.Candidates)}
+}
 
-	lines, err := pickerLines(sel.Candidates)
-	if err != nil {
-		return nil, err
+// capitalized is s with its first letter upper-cased.
+func capitalized(s string) string {
+	if s == "" {
+		return s
 	}
-	return &Prompt{Kind: PromptChoose, Title: "Choose one", Lines: lines}, nil
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 // viewTitles is every read-only view a client can ask for, and the caption
@@ -243,22 +278,15 @@ func (g *Game) View(name string) (View, error) {
 	defer g.mu.Unlock()
 
 	var lines []string
-	var err error
 	switch name {
 	case "inventory":
-		lines, err = inventoryLines(g.state)
+		lines = inventoryLines(g.state)
 	case "look":
-		lines, err = lookHereLines(g.state)
+		lines = lookHereLines(g.state)
 	case "status":
-		var fieldsJSON []byte
-		if fieldsJSON, err = player.Status(g.state.PlayerState); err == nil {
-			lines, err = statusLines(fieldsJSON)
-		}
+		lines = hudLines(g.state)
 	case "help":
 		lines = helpLines()
-	}
-	if err != nil {
-		return View{}, err
 	}
 
 	return View{Name: name, Title: title, Lines: lines}, nil

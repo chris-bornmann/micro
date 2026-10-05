@@ -5,6 +5,9 @@ package mapdata
 // includes that corridor's two door endpoints). Coordinates outside every
 // room and corridor — including out-of-map coordinates — are unwalkable.
 func (m Map) isWalkable(x, y int) bool {
+	if m.IsWall(x, y) {
+		return false
+	}
 	if _, ok := m.RoomAt(x, y); ok {
 		return true
 	}
@@ -77,16 +80,27 @@ type point struct{ X, Y int }
 var stepDirs = []point{{X: 0, Y: -1}, {X: 0, Y: 1}, {X: -1, Y: 0}, {X: 1, Y: 0}}
 
 // NextStep returns the next tile to move to when heading from (fromX,fromY)
-// toward (toX,toY) via the shortest legal route (using CanMove for edge
-// legality, so the route always respects room/corridor door-crossing
-// rules). Ties between equally-short routes are broken by preferring the
-// axis with the larger remaining distance — a "most direct" chase — then
-// horizontal over vertical. ok is false if there's no legal route, or the
-// two points already coincide.
+// toward (toX,toY) via the shortest legal route — Route with nothing in
+// the way.
 func (m Map) NextStep(fromX, fromY, toX, toY int) (nx, ny int, ok bool) {
+	step, _, ok := m.Route(fromX, fromY, toX, toY, nil)
+	return step.X, step.Y, ok
+}
+
+// Route finds the shortest legal route from (fromX,fromY) to (toX,toY)
+// (using CanMove for edge legality, so it always respects room/corridor
+// door-crossing rules) and returns its first step and its length in steps.
+// A tile blocked reports true for — someone standing there, say — is
+// treated as a wall, except the destination itself; blocked may be nil.
+// Ties between equally-short routes are broken by preferring the axis with
+// the larger remaining distance — a "most direct" chase — then horizontal
+// over vertical. ok is false if there's no legal route, or the two points
+// already coincide.
+func (m Map) Route(fromX, fromY, toX, toY int, blocked func(x, y int) bool) (step Point, length int, ok bool) {
 	if fromX == toX && fromY == toY {
-		return 0, 0, false
+		return Point{}, 0, false
 	}
+	from := point{X: fromX, Y: fromY}
 
 	// BFS outward from the target along reverse edges, so every reachable
 	// point ends up knowing its true shortest number of *forward* steps to
@@ -107,6 +121,9 @@ func (m Map) NextStep(fromX, fromY, toX, toY int) (nx, ny int, ok bool) {
 			if _, seen := dist[next]; seen {
 				continue
 			}
+			if next != from && blocked != nil && blocked(next.X, next.Y) {
+				continue
+			}
 			if !m.CanMove(next.X, next.Y, cur.X, cur.Y) {
 				continue
 			}
@@ -115,10 +132,9 @@ func (m Map) NextStep(fromX, fromY, toX, toY int) (nx, ny int, ok bool) {
 		}
 	}
 
-	from := point{X: fromX, Y: fromY}
 	fromDist, reachable := dist[from]
 	if !reachable {
-		return 0, 0, false
+		return Point{}, 0, false
 	}
 
 	// Even with the corrected BFS direction, only trust a neighbor whose
@@ -133,7 +149,7 @@ func (m Map) NextStep(fromX, fromY, toX, toY int) (nx, ny int, ok bool) {
 		}
 	}
 	if len(candidates) == 0 {
-		return 0, 0, false
+		return Point{}, 0, false
 	}
 
 	preferX := abs(toX-fromX) >= abs(toY-fromY)
@@ -148,7 +164,7 @@ func (m Map) NextStep(fromX, fromY, toX, toY int) (nx, ny int, ok bool) {
 			break
 		}
 	}
-	return best.X, best.Y, true
+	return Point{X: best.X, Y: best.Y}, fromDist, true
 }
 
 func abs(v int) int {

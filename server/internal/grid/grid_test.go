@@ -148,8 +148,8 @@ func TestBuildRevealHiddenShowsTheDoorDistinctly(t *testing.T) {
 	g := Build(m, Options{RevealHidden: true})
 
 	got := g.Cells[2][3]
-	if got.Ch != 'h' || got.Color != colorHiddenDebug {
-		t.Errorf("expected the revealed hidden door drawn as ('h',%v), got (%q,%v)", colorHiddenDebug, got.Ch, got.Color)
+	if got.Ch != 'h' || got.Color != RevealColor {
+		t.Errorf("expected the revealed hidden door drawn as ('h',%v), got (%q,%v)", RevealColor, got.Ch, got.Color)
 	}
 }
 
@@ -259,5 +259,23 @@ func TestEncodeBlankCellIsPaletteIndexZero(t *testing.T) {
 				t.Errorf("cell (%d,%d) on an empty map: got palette index %d, want 0", x, y, colors[y][x])
 			}
 		}
+	}
+}
+
+// TestWallsInsideARoomAreDrawn: a maze's inner walls show as walls
+// wherever its room is drawn whole — lit, or dark on the full-map view —
+// and, seen by torchlight, tile by tile.
+func TestWallsInsideARoomAreDrawn(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		m := &mapdata.Map{Width: 8, Height: 5, Rooms: []mapdata.Room{{ID: 0, X: 1, Y: 1, W: 5, H: 3, Dark: dark, Walled: true}},
+			Walls: map[mapdata.Point]bool{{X: 3, Y: 2}: true}}
+		if c := Build(m, Options{}).Cells[2][3]; c.Ch != '#' {
+			t.Errorf("dark %v: the wall drawn as %q", dark, c.Ch)
+		}
+	}
+	m := &mapdata.Map{Width: 8, Height: 5, Walls: map[mapdata.Point]bool{{X: 3, Y: 2}: true}}
+	g := Build(m, Options{LitTiles: []mapdata.Point{{X: 2, Y: 2}, {X: 3, Y: 2}}})
+	if g.Cells[2][2].Ch != '.' || g.Cells[2][3].Ch != '#' {
+		t.Errorf("by torchlight: %q %q", g.Cells[2][2].Ch, g.Cells[2][3].Ch)
 	}
 }

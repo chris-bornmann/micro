@@ -61,37 +61,69 @@ type Frame struct {
 }
 
 // visibleObjects returns every object the player can perceive right now:
-// themselves, every live monster, and every floor item, filtered through
-// fog of war.
+// themselves, every live monster that is not invisible, and every floor
+// item, filtered through fog of war.
+//
+// An invisible monster is drawn only with revealHidden, the cheat for
+// seeing what the game hides, and then in grid.RevealColor so it is plain
+// which monsters are invisible. fullMap lifts fog of war and nothing else.
+//
+// A Player who can see invisible sees an invisible monster like any
+// other, in its own color, wherever they could see it anyway — and hidden
+// things on the floor, such as undiscovered traps, the same way. Without
+// it, those are drawn only with revealHidden, in grid.RevealColor.
+//
+// A Player with monster vision senses every live monster on the level —
+// through fog and walls, invisible or not — so monsters skip both checks.
+// Only the monsters: the map itself shows no more than it did.
 //
 // The filter is deliberately two different rules, both enforced here rather
 // than anywhere a client could reach. A movable object is shown only while
 // it is currently in view — if you cannot see it, you do not know whether
-// it is still there. A Fixed one (a staircase) is remembered once seen,
+// it is still there. A fixed one (a staircase) is remembered once seen,
 // like the shape of a room. See Visibility.filterObjects.
-func visibleObjects(state *GameState, fullMap bool) ([]overlay.Object, error) {
-	p, err := playerObject(state.PlayerState)
-	if err != nil {
-		return nil, err
-	}
-	liveMonsters, err := liveMonsterObjects(state)
-	if err != nil {
-		return nil, err
-	}
-
-	all := append([]overlay.Object{p}, liveMonsters...)
-	for _, raw := range state.FloorItems {
-		it, err := itemInfo(raw)
-		if err != nil {
-			return nil, err
+func visibleObjects(state *GameState, fullMap, revealHidden bool) []overlay.Object {
+	reg := state.eng.Reg
+	sensing := reg.Has(state.Player, "monster_vision")
+	seeing := reg.Has(state.Player, "see_invisible")
+	all := []sighting{{Object: reg.Object(state.Player, state.Identity)}}
+	var sensed []sighting
+	for _, m := range state.liveMonsters() {
+		obj := reg.Object(m, state.Identity)
+		if reg.Has(m, "invisible") {
+			switch {
+			case revealHidden:
+				obj.Color = grid.RevealColor
+			case !sensing && !seeing:
+				continue
+			}
 		}
-		all = append(all, it.Object)
+		if sensing {
+			sensed = append(sensed, sighting{Object: obj})
+		} else {
+			all = append(all, sighting{Object: obj})
+		}
+	}
+	for _, it := range state.FloorItems {
+		obj := reg.Object(it, state.Identity)
+		if !state.noticed(it) {
+			if !revealHidden {
+				continue // an undiscovered trap: the floor looks like floor
+			}
+			obj.Color = grid.RevealColor
+		}
+		all = append(all, sighting{Object: obj, Fixed: reg.Has(it, "fixed")})
 	}
 
-	if fullMap {
-		return all, nil
+	if !fullMap {
+		all = state.Visited.filterObjects(state.Map, all, currentlyVisibleTiles(state))
 	}
-	return state.Visited.filterObjects(state.Map, all, currentlyVisibleTiles(state, p)), nil
+	all = append(all, sensed...)
+	out := make([]overlay.Object, len(all))
+	for i, s := range all {
+		out[i] = s.Object
+	}
+	return out
 }
 
 // currentlyVisibleTiles is the CURRENT-frame visible set, used only to
@@ -100,8 +132,9 @@ func visibleObjects(state *GameState, fullMap bool) ([]overlay.Object, error) {
 // used for the lit-tile pass — a movable object on a tile you remember but
 // aren't currently in view of must stay hidden even though the floor there
 // keeps rendering.
-func currentlyVisibleTiles(state *GameState, p overlay.Object) []mapdata.Point {
-	return vision.CurrentlyVisible(*state.Map, p.X, p.Y, p.Lit)
+func currentlyVisibleTiles(state *GameState) []mapdata.Point {
+	p := state.Player
+	return vision.CurrentlyVisible(*state.Map, p.X, p.Y, state.eng.Reg.Has(p, "light"))
 }
 
 // buildFrame rasterizes the player's current view.
@@ -110,7 +143,7 @@ func currentlyVisibleTiles(state *GameState, p overlay.Object) []mapdata.Point {
 // flags. They are parameters rather than fields on a request because a
 // client must not be able to ask for either: both exist to reveal what the
 // game is otherwise hiding.
-func buildFrame(state *GameState, turn int, revealHidden, fullMap bool) (Frame, error) {
+func buildFrame(state *GameState, turn int, revealHidden, fullMap bool) Frame {
 	// The map a client sees is the filtered one unless we are deliberately
 	// cheating. filterObjects consults the same filter internally, so the
 	// two can never disagree about what has been explored.
@@ -119,27 +152,13 @@ func buildFrame(state *GameState, turn int, revealHidden, fullMap bool) (Frame, 
 		m = state.Visited.visibleMap(state.Map)
 	}
 
-	objects, err := visibleObjects(state, fullMap)
-	if err != nil {
-		return Frame{}, err
-	}
-
 	g := grid.Build(m, grid.Options{
 		RevealHidden: revealHidden,
-		Objects:      objects,
+		SeeHidden:    state.eng.Reg.Has(state.Player, "see_invisible"),
+		Objects:      visibleObjects(state, fullMap, revealHidden),
 		LitTiles:     state.Visited.rememberedTiles(),
 	})
 	rows, colors, palette := g.Encode()
-
-	p, err := playerObject(state.PlayerState)
-	if err != nil {
-		return Frame{}, err
-	}
-
-	hud, err := hudLines(state)
-	if err != nil {
-		return Frame{}, err
-	}
 
 	return Frame{
 		Turn:     turn,
@@ -150,7 +169,7 @@ func buildFrame(state *GameState, turn int, revealHidden, fullMap bool) (Frame, 
 		Rows:     rows,
 		Colors:   colors,
 		Palette:  palette,
-		HUD:      hud,
-		GameOver: p.Dead,
-	}, nil
+		HUD:      hudLines(state),
+		GameOver: state.Player.Dead,
+	}
 }
