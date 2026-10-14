@@ -40,19 +40,36 @@ cd client/web && npm install && npm run dev       # http://localhost:5173
 
 ### In a container, or on AWS Fargate
 
+The image holds `mapd` and the web client, which `mapd` serves beside the
+API, so one container is the whole game:
+
 ```sh
-docker build -t mapd server
-docker run --rm -p 8080:8080 mapd                              # :8080
-docker run --rm -p 8080:8080 mapd -addr :8080 -cors-origin http://localhost:5173
+docker build -t mapd .
+docker run --rm -p 8080:8080 mapd                               # http://localhost:8080
+docker run --rm -p 8080:8080 mapd -addr :8080 -web-dir /web -seed 4
 ```
 
-The same image runs as an ECS service on Fargate, behind a load balancer whose
-health check is `GET /healthz`. Fargate runs arm64 or x86_64; build for the
-one the task definition uses, e.g. `docker build --platform linux/arm64`.
+`deploy/` holds the Terraform that runs it on AWS Fargate, behind CloudFront,
+with players signing in through Amazon Cognito; its README walks through a
+deploy. Games live in the server's memory (see `internal/httpapi`), so it runs
+exactly one task, and a deploy or a task restart loses every game in progress.
 
-Games live in the server's memory (see `internal/httpapi`), so run exactly one
-task: a second one would not know the first one's games. A deploy or a task
-restart loses every game in progress.
+### Accounts
+
+By default `mapd` has no accounts: anyone who can reach it may start games.
+With `-auth cognito` every request must come from a player signed in to a
+Cognito user pool, each player has one game in progress at a time, and no one
+can see anyone else's game:
+
+```sh
+mapd -auth cognito -cognito-pool us-east-1_AbCdEf123 \
+     -cognito-client <app client ID> -cognito-domain <prefix>.auth.us-east-1.amazoncognito.com
+```
+
+All three clients ask the server whether to sign in, and sign in through
+Cognito's page in the browser. The terminal and desktop clients keep the
+sign-in in your configuration directory (`micro/sign-in.json`), so it lasts a
+month; delete that file to sign out. PROTOCOL.md has the details.
 
 ## Testing
 

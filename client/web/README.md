@@ -37,15 +37,20 @@ You can add these to the page's URL:
 
 ### Deploying
 
-`npm run build` writes static files to `dist/`. Any static host will serve
-them.
+`mapd -web-dir` serves the built client beside the API, and the container
+image does that (see the top-level README), so normally there is nothing to
+deploy separately.
+
+To host the files elsewhere instead, `npm run build` writes them to `dist/`,
+for any static host:
 1. Build with `VITE_API_URL` set to where `mapd` will be.
 2. Start `mapd` with `-cors-origin` set to where the page is served from.
 
-**`mapd` has no authentication.** Unguessable game IDs keep games apart,
-but anyone who can reach it can start games, and games live in memory and
-are never cleaned up. Before exposing it beyond your own machine, put real
-authentication, rate limits and game expiry in front of it.
+**Signing in.** The client asks the server (`GET /v1/config`) whether it
+wants players signed in. If it does, the page sends the player to Cognito's
+sign-in page and back, and keeps the tokens for as long as the tab is open
+(`src/api/signin.ts`). It comes back to the site's root, which must be one of
+the app client's callback URLs (see `deploy/cognito.tf`).
 
 ## Keys
 
@@ -58,6 +63,7 @@ authentication, rate limits and game expiry in front of it.
 | `i` `l` `s` `?` | Inventory, look, status, help (no turn) |
 | A letter / an arrow | Answer an open prompt; any other key cancels it |
 | Any key | Close an open view |
+| `x` | Abandon the quest (asks first) |
 | `n` | New game, once the game is over |
 
 - Keys held with Ctrl, Alt or Meta are left to the browser.
