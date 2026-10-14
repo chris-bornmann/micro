@@ -33,6 +33,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"sort"
@@ -47,11 +48,39 @@ import (
 // that a request cannot influence them.
 type NewGameFunc func(seed *int64) (*game.Game, error)
 
+// Options are a Server's optional settings. The zero value is an anonymous
+// server that logs nothing.
+type Options struct {
+	// Auth says who sent each request. Nil makes every request anonymous
+	// (see the package comment).
+	Auth Authenticator
+	// SignIn tells clients where to sign in, and is served at
+	// GET /v1/config. Set it whenever Auth is set.
+	SignIn *SignIn
+	// Web, if set, is the built web client, served at "/" so that the game
+	// and its API share one address and the browser needs no CORS.
+	Web fs.FS
+	// Logger, if set, logs every request that fails.
+	Logger *log.Logger
+}
+
+// SignIn is what a client needs to sign a user in with Cognito's hosted
+// page. None of it is secret: the app client is a public one, made for
+// code that runs on the player's own device.
+type SignIn struct {
+	// Domain is the hosted sign-in page's domain, such as
+	// "micro-hack.auth.us-east-1.amazoncognito.com".
+	Domain string `json:"domain"`
+	// ClientID is the user pool's app client for the game.
+	ClientID string `json:"client_id"`
+}
+
 // Server routes requests to live games.
 type Server struct {
 	mux    *http.ServeMux
 	new    NewGameFunc
 	auth   Authenticator
+	signIn *SignIn
 	logger *log.Logger
 
 	mu    sync.RWMutex
@@ -68,26 +97,31 @@ type entry struct {
 	owner string
 }
 
-// New builds a Server. auth may be nil, in which case every request is
-// anonymous (see the package comment). logger may be nil, in which case
-// request errors are not logged.
-func New(newGame NewGameFunc, auth Authenticator, logger *log.Logger) *Server {
+// New builds a Server that starts games with newGame.
+func New(newGame NewGameFunc, opts Options) *Server {
 	s := &Server{
 		mux:    http.NewServeMux(),
 		new:    newGame,
-		auth:   auth,
-		logger: logger,
+		auth:   opts.Auth,
+		signIn: opts.SignIn,
+		logger: opts.Logger,
 		games:  map[string]*entry{},
 		latest: map[string]string{},
 	}
 
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /v1/config", s.handleConfig)
 	s.mux.HandleFunc("GET /v1/me", s.handleMe)
 	s.mux.HandleFunc("POST /v1/games", s.handleNewGame)
 	s.mux.HandleFunc("GET /v1/games/{id}/frame", s.handleFrame)
 	s.mux.HandleFunc("POST /v1/games/{id}/command", s.handleCommand)
 	s.mux.HandleFunc("POST /v1/games/{id}/commands", s.handleCommands)
 	s.mux.HandleFunc("GET /v1/games/{id}/views/{name}", s.handleView)
+	if opts.Web != nil {
+		// "GET /" matches only what no route above does, so the web
+		// client's files can never shadow the API.
+		s.mux.Handle("GET /", http.FileServerFS(opts.Web))
+	}
 
 	return s
 }
@@ -116,6 +150,13 @@ type NewGameResponse struct {
 type GameInProgressResponse struct {
 	Error         string `json:"error"`
 	CurrentGameID string `json:"current_game_id"`
+}
+
+// ConfigResponse tells a client how this server is set up before it has
+// signed in. SignIn is absent on an anonymous server, where there is no
+// signing in to do.
+type ConfigResponse struct {
+	SignIn *SignIn `json:"sign_in,omitempty"`
 }
 
 // MeResponse is what the server knows about the signed-in user: only their
@@ -159,6 +200,10 @@ type ErrorResponse struct {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, ConfigResponse{SignIn: s.signIn})
 }
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {

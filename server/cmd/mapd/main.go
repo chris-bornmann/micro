@@ -8,6 +8,10 @@
 //
 // A client may supply a seed when starting a game, and only so that a bug can
 // be reproduced. Omitting it uses -seed, and -seed 0 means "pick at random".
+//
+// By default the server is anonymous, for play on one's own machine. With
+// -auth cognito, every request must carry an access token from the
+// Cognito user pool -cognito-pool, and each player has their own games.
 package main
 
 import (
@@ -19,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"micro/server/internal/auth"
 	"micro/server/internal/game"
 	"micro/server/internal/httpapi"
 	"micro/server/internal/mapgen"
@@ -43,6 +48,11 @@ func main() {
 	cheatMode := flag.Bool("cheat-mode", false, "cheat: start the player with 1000 hit points")
 	playerFile := flag.String("player", "", "testing: load the player from this YAML file instead of the built-in one (see internal/content/data/README.md)")
 	corsOrigins := flag.String("cors-origin", "", "comma-separated origins whose web pages may call this server, e.g. http://localhost:5173 (default: none)")
+	webDir := flag.String("web-dir", "", "serve the built web client from this directory at / (default: none)")
+	authMode := flag.String("auth", "none", "who may play: none (anyone, anonymously) or cognito (signed-in users, each with their own games)")
+	cognitoPool := flag.String("cognito-pool", "", "with -auth cognito: the user pool ID, e.g. us-east-1_AbCdEf123")
+	cognitoClient := flag.String("cognito-client", "", "with -auth cognito: the user pool's app client ID")
+	cognitoDomain := flag.String("cognito-domain", "", "with -auth cognito: the hosted sign-in page's domain, e.g. micro-hack.auth.us-east-1.amazoncognito.com")
 	flag.Parse()
 
 	logger := log.New(os.Stderr, "mapd: ", log.LstdFlags)
@@ -65,9 +75,32 @@ func main() {
 		return game.NewGame(c, *revealHidden, *showFullMap, *cheatMode)
 	}
 
+	opts := httpapi.Options{Logger: logger}
+	switch *authMode {
+	case "none":
+	case "cognito":
+		if *cognitoDomain == "" {
+			fmt.Fprintln(os.Stderr, "mapd: -auth cognito needs -cognito-domain")
+			os.Exit(2)
+		}
+		c, err := auth.NewCognito(*cognitoPool, *cognitoClient)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "mapd: -auth cognito:", err)
+			os.Exit(2)
+		}
+		opts.Auth = c
+		opts.SignIn = &httpapi.SignIn{Domain: *cognitoDomain, ClientID: *cognitoClient}
+	default:
+		fmt.Fprintf(os.Stderr, "mapd: -auth %q: want none or cognito\n", *authMode)
+		os.Exit(2)
+	}
+	if *webDir != "" {
+		opts.Web = os.DirFS(*webDir)
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpapi.WithCORS(httpapi.New(newGame, nil, logger), splitOrigins(*corsOrigins)),
+		Handler:           httpapi.WithCORS(httpapi.New(newGame, opts), splitOrigins(*corsOrigins)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -76,7 +109,7 @@ func main() {
 	}
 	// The launch configuration's compound start races the client against this
 	// line, so say it in a form that is obvious in a log.
-	logger.Printf("listening on %s", *addr)
+	logger.Printf("listening on %s (auth: %s)", *addr, *authMode)
 
 	if err := srv.ListenAndServe(); err != nil {
 		fmt.Fprintln(os.Stderr, "mapd:", err)

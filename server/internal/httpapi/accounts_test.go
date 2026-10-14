@@ -29,7 +29,7 @@ func newAccountsServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	h := New(func(seed *int64) (*game.Game, error) {
 		return game.NewGame(testConfig(), false, false, false)
-	}, headerAuth{}, nil)
+	}, Options{Auth: headerAuth{}, SignIn: &SignIn{Domain: "auth.example.com", ClientID: "test-client"}})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv
@@ -195,5 +195,22 @@ func TestWithoutAccountsAnyoneMayStartAnyNumberOfGames(t *testing.T) {
 	var me MeResponse
 	if code := do(t, srv, "GET", "/v1/me", nil, &me); code != http.StatusOK || me.CurrentGameID != "" {
 		t.Errorf("GET /v1/me = %d %+v, want 200 and no game", code, me)
+	}
+}
+
+func TestConfigTellsClientsWhereToSignIn(t *testing.T) {
+	var cfg ConfigResponse
+	if code := do(t, newAccountsServer(t), "GET", "/v1/config", nil, &cfg); code != http.StatusOK {
+		t.Fatalf("GET /v1/config = %d, want 200", code)
+	}
+	if cfg.SignIn == nil || cfg.SignIn.Domain != "auth.example.com" || cfg.SignIn.ClientID != "test-client" {
+		t.Errorf("sign_in = %+v", cfg.SignIn)
+	}
+
+	// An anonymous server has no signing in to do.
+	cfg = ConfigResponse{}
+	do(t, newTestServer(t, false, false), "GET", "/v1/config", nil, &cfg)
+	if cfg.SignIn != nil {
+		t.Errorf("an anonymous server sent sign_in %+v", cfg.SignIn)
 	}
 }

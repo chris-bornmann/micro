@@ -12,8 +12,9 @@ import (
 //
 // It answers the preflight a browser sends before a JSON POST (OPTIONS,
 // with Access-Control-Request-Method) itself, with 204. It never allows
-// credentials, and never a wildcard: the API has no authentication beyond
-// unguessable game IDs, so which sites may call it is an explicit list.
+// credentials (cookies), and never a wildcard: which sites may call the API
+// is an explicit list. A signed-in user's token travels in the
+// Authorization header, which the page sets itself.
 func WithCORS(h http.Handler, origins []string) http.Handler {
 	if len(origins) == 0 {
 		return h
@@ -25,7 +26,8 @@ func WithCORS(h http.Handler, origins []string) http.Handler {
 		if allowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			// Authorization carries a signed-in user's bearer token.
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		}
 		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
