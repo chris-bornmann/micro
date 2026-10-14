@@ -38,6 +38,22 @@ cd server && go run ./cmd/mapd -cors-origin http://localhost:5173
 cd client/web && npm install && npm run dev       # http://localhost:5173
 ```
 
+### In a container, or on AWS Fargate
+
+```sh
+docker build -t mapd server
+docker run --rm -p 8080:8080 mapd                              # :8080
+docker run --rm -p 8080:8080 mapd -addr :8080 -cors-origin http://localhost:5173
+```
+
+The same image runs as an ECS service on Fargate, behind a load balancer whose
+health check is `GET /healthz`. Fargate runs arm64 or x86_64; build for the
+one the task definition uses, e.g. `docker build --platform linux/arm64`.
+
+Games live in the server's memory (see `internal/httpapi`), so run exactly one
+task: a second one would not know the first one's games. A deploy or a task
+restart loses every game in progress.
+
 ## Testing
 
 ```sh

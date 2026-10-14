@@ -1,0 +1,6 @@
+# Only the Go sources and the embedded content are needed to build mapd.
+mapd
+mapdump
+*.test
+Dockerfile
+.dockerignore
