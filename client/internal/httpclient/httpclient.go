@@ -86,12 +86,38 @@ type View struct {
 	Lines []string `json:"lines"`
 }
 
+// Config is how the server is set up: SignIn is nil unless it wants players
+// signed in.
+type Config struct {
+	SignIn *SignIn `json:"sign_in"`
+}
+
+// SignIn says where to sign in: Cognito's hosted page, and the app client
+// to sign in to. None of it is secret.
+type SignIn struct {
+	Domain   string `json:"domain"`
+	ClientID string `json:"client_id"`
+}
+
+// Error is a response the server refused, with the message it gave.
+type Error struct {
+	Status  string // e.g. "409 Conflict"
+	Code    int
+	Message string
+	// CurrentGameID is set on a 409 for starting a second game: the game
+	// the user already has in progress.
+	CurrentGameID string
+}
+
+func (e *Error) Error() string { return e.Status + ": " + e.Message }
+
 // Client is a connection to one game on one server. Not safe for concurrent
 // use; a client draws and types on one thread.
 type Client struct {
 	base   string
 	gameID string
 	http   *http.Client
+	token  func() (string, error)
 }
 
 // New returns a Client for the server at base (e.g. "http://localhost:8080").
@@ -101,6 +127,10 @@ func New(base string) *Client {
 		http: &http.Client{Timeout: 15 * time.Second},
 	}
 }
+
+// UseToken has every request carry the access token token returns, for a
+// server that wants players signed in.
+func (c *Client) UseToken(token func() (string, error)) { c.token = token }
 
 // GameID is the id of the game NewGame created, for logs and bug reports.
 func (c *Client) GameID() string { return c.gameID }
@@ -166,6 +196,41 @@ func (c *Client) NewGame(seed *int64) (Frame, error) {
 	return out.Frame, nil
 }
 
+// Config asks how the server is set up. It needs no sign-in.
+func (c *Client) Config() (Config, error) {
+	var out Config
+	err := c.do("GET", "/v1/config", nil, &out)
+	return out, err
+}
+
+// Resume picks up the signed-in user's game in progress if they have one,
+// and otherwise starts a new game as NewGame does. It reports whether it
+// resumed.
+//
+// A server without accounts knows of no game in progress, so there this is
+// NewGame. With accounts, a user has one game at a time, and asking for
+// another is refused with the one they have; Resume takes that one too, in
+// case it was started (from another client) after the first question.
+func (c *Client) Resume(seed *int64) (f Frame, resumed bool, err error) {
+	var me struct {
+		CurrentGameID string `json:"current_game_id"`
+	}
+	if err := c.do("GET", "/v1/me", nil, &me); err != nil {
+		return Frame{}, false, err
+	}
+	if me.CurrentGameID == "" {
+		f, err = c.NewGame(seed)
+		var refused *Error
+		if !errors.As(err, &refused) || refused.CurrentGameID == "" {
+			return f, false, err
+		}
+		me.CurrentGameID = refused.CurrentGameID
+	}
+	c.gameID = me.CurrentGameID
+	f, err = c.Frame()
+	return f, true, err
+}
+
 // Frame fetches the current screen without advancing anything.
 func (c *Client) Frame() (Frame, error) {
 	var out struct {
@@ -224,6 +289,13 @@ func (c *Client) do(method, path string, body any, dst any) error {
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	if c.token != nil {
+		token, err := c.token()
+		if err != nil {
+			return fmt.Errorf("%s %s: %w", method, path, err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -232,7 +304,7 @@ func (c *Client) do(method, path string, body any, dst any) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("%s %s: %s: %s", method, path, resp.Status, serverError(resp.Body))
+		return fmt.Errorf("%s %s: %w", method, path, serverError(resp))
 	}
 	if dst == nil {
 		return nil
@@ -243,18 +315,22 @@ func (c *Client) do(method, path string, body any, dst any) error {
 	return nil
 }
 
-// serverError pulls the message out of an error response body, falling back to
-// whatever raw text is there.
-func serverError(r io.Reader) string {
-	data, err := io.ReadAll(io.LimitReader(r, 8<<10))
+// serverError reads an error response: the message out of its body, falling
+// back to whatever raw text is there.
+func serverError(resp *http.Response) *Error {
+	e := &Error{Status: resp.Status, Code: resp.StatusCode, Message: "(no body)"}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
 	if err != nil || len(data) == 0 {
-		return "(no body)"
+		return e
 	}
-	var e struct {
-		Error string `json:"error"`
+	var body struct {
+		Error         string `json:"error"`
+		CurrentGameID string `json:"current_game_id"`
 	}
-	if err := json.Unmarshal(data, &e); err == nil && e.Error != "" {
-		return e.Error
+	if err := json.Unmarshal(data, &body); err == nil && body.Error != "" {
+		e.Message, e.CurrentGameID = body.Error, body.CurrentGameID
+	} else {
+		e.Message = strings.TrimSpace(string(data))
 	}
-	return strings.TrimSpace(string(data))
+	return e
 }

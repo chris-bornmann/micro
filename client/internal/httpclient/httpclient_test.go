@@ -261,6 +261,91 @@ func TestErrorsSurviveANonJSONBody(t *testing.T) {
 	}
 }
 
+func TestResumeContinuesTheGameInProgress(t *testing.T) {
+	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v1/me":
+			fmt.Fprint(w, `{"current_game_id":"g3"}`)
+		case "GET /v1/games/g3/frame":
+			fmt.Fprintf(w, `{"frame":%s}`, sampleFrame)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusTeapot)
+		}
+	})
+
+	f, resumed, err := c.Resume(nil)
+	if err != nil || !resumed || c.GameID() != "g3" || f.Turn != 3 {
+		t.Errorf("Resume = turn %d, %v, %v; game %q", f.Turn, resumed, err, c.GameID())
+	}
+}
+
+func TestResumeStartsAGameWhenThereIsNoneInProgress(t *testing.T) {
+	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v1/me":
+			fmt.Fprint(w, `{}`)
+		case "POST /v1/games":
+			fmt.Fprintf(w, `{"game_id":"g7","frame":%s}`, sampleFrame)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	if _, resumed, err := c.Resume(nil); err != nil || resumed || c.GameID() != "g7" {
+		t.Errorf("Resume = %v, %v; game %q", resumed, err, c.GameID())
+	}
+}
+
+// TestResumeTakesTheGameNamedByA409 covers a game started from another
+// client between the two questions Resume asks.
+func TestResumeTakesTheGameNamedByA409(t *testing.T) {
+	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v1/me":
+			fmt.Fprint(w, `{}`)
+		case "POST /v1/games":
+			w.WriteHeader(http.StatusConflict)
+			fmt.Fprint(w, `{"error":"you already have a game in progress","current_game_id":"g5"}`)
+		case "GET /v1/games/g5/frame":
+			fmt.Fprintf(w, `{"frame":%s}`, sampleFrame)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+	})
+
+	if _, resumed, err := c.Resume(nil); err != nil || !resumed || c.GameID() != "g5" {
+		t.Errorf("Resume = %v, %v; game %q", resumed, err, c.GameID())
+	}
+}
+
+func TestEveryRequestCarriesTheToken(t *testing.T) {
+	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer tok" {
+			t.Errorf("%s %s: Authorization = %q", r.Method, r.URL.Path, got)
+		}
+		fmt.Fprintf(w, `{"game_id":"g1","frame":%s}`, sampleFrame)
+	})
+	c.UseToken(func() (string, error) { return "tok", nil })
+
+	if _, err := c.NewGame(nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.Frame(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestConfigSaysWhereToSignIn(t *testing.T) {
+	c := stub(t, func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"sign_in":{"domain":"auth.example.com","client_id":"abc"}}`)
+	})
+	cfg, err := c.Config()
+	if err != nil || cfg.SignIn == nil || *cfg.SignIn != (SignIn{Domain: "auth.example.com", ClientID: "abc"}) {
+		t.Errorf("Config = %+v, %v", cfg.SignIn, err)
+	}
+}
+
 // TestWaitForServerReturnsWhenItComesUp covers the compound-launch race the
 // editor creates by starting server and client simultaneously.
 func TestWaitForServerReturnsWhenItComesUp(t *testing.T) {
