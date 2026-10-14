@@ -51,6 +51,23 @@ export interface NewGameResponse {
 
 export type ViewName = "inventory" | "look" | "status" | "help";
 
+/** Where to sign in with Cognito's hosted page. None of it is secret. */
+export interface SignInConfig {
+  /** The hosted page's domain, e.g. "micro-hack.auth.us-east-1.amazoncognito.com". */
+  domain: string;
+  client_id: string;
+}
+
+/** How the server is set up. `sign_in` is absent when it needs no sign-in. */
+export interface ServerConfig {
+  sign_in?: SignInConfig;
+}
+
+/** What the server knows about the signed-in user. */
+export interface Me {
+  current_game_id?: string;
+}
+
 /** The response did not match the protocol. */
 export class ProtocolError extends Error {
   override name = "ProtocolError";
@@ -164,4 +181,28 @@ export function parseView(v: Json): View {
     title: str(o.title, "view.title"),
     lines: strings(o.lines, "view.lines"),
   };
+}
+
+export function parseConfig(v: Json): ServerConfig {
+  const o = obj(v, "config");
+  if (o.sign_in === undefined) return {};
+  const si = obj(o.sign_in, "config.sign_in");
+  return {
+    sign_in: { domain: str(si.domain, "sign_in.domain"), client_id: str(si.client_id, "sign_in.client_id") },
+  };
+}
+
+export function parseMe(v: Json): Me {
+  const o = obj(v, "me");
+  return o.current_game_id === undefined
+    ? {}
+    : { current_game_id: str(o.current_game_id, "current_game_id") };
+}
+
+/** The game in progress named by a 409 for starting a second game, if the
+ * body is one. */
+export function currentGameOf(v: Json): string | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const id = (v as Record<string, Json>).current_game_id;
+  return typeof id === "string" ? id : undefined;
 }
