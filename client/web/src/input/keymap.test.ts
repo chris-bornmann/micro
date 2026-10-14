@@ -23,6 +23,7 @@ describe("playing", () => {
     ["E", "E"],
     ["d", "D"],
     ["t", "T"],
+    ["x", "X"],
   ])("%s sends %s", (k, sent) => {
     expect(interpret(key(k), "play")).toEqual({ type: "send", key: sent });
   });

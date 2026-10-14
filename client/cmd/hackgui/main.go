@@ -192,7 +192,7 @@ func main() {
 	// SetOnTypedKey only. This does NOT cover the picker's dynamic
 	// candidate letters (A-Z) — those are handled by unconditionally
 	// skipping SetOnTypedRune entirely while a picker is open, below.
-	gameKeysHandledByTypedKey := map[rune]bool{'.': true, ',': true, 'a': true, 'A': true, 'e': true, 'E': true, 'i': true, 'I': true, 'd': true, 'D': true, 'l': true, 'L': true, 't': true, 'T': true, 's': true, 'S': true}
+	gameKeysHandledByTypedKey := map[rune]bool{'.': true, ',': true, 'a': true, 'A': true, 'e': true, 'E': true, 'i': true, 'I': true, 'd': true, 'D': true, 'l': true, 'L': true, 't': true, 'T': true, 's': true, 'S': true, 'x': true, 'X': true}
 
 	// modifierKeys never mean anything on their own — Shift, Control,
 	// Alt/Option, and Command/Super only matter held in combination with

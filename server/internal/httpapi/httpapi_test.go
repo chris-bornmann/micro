@@ -36,7 +36,7 @@ func newTestServer(t *testing.T, reveal, full bool) *httptest.Server {
 			c.Seed = *seed
 		}
 		return game.NewGame(c, reveal, full, false)
-	}, nil)
+	}, nil, nil)
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv

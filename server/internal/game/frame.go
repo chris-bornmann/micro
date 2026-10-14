@@ -170,6 +170,6 @@ func buildFrame(state *GameState, turn int, revealHidden, fullMap bool) Frame {
 		Colors:   colors,
 		Palette:  palette,
 		HUD:      hudLines(state),
-		GameOver: state.Player.Dead,
+		GameOver: state.over(),
 	}
 }

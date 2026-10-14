@@ -67,7 +67,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           httpapi.WithCORS(httpapi.New(newGame, logger), splitOrigins(*corsOrigins)),
+		Handler:           httpapi.WithCORS(httpapi.New(newGame, nil, logger), splitOrigins(*corsOrigins)),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -68,7 +68,17 @@ type GameState struct {
 	// number.
 	Turn int
 
+	// Abandoned is whether the Player gave up the quest (see
+	// confirmAbandon). It ends the game the way death does.
+	Abandoned bool
+
 	*levelState
+}
+
+// over is whether the game has ended, by death or by abandoning the
+// quest. Once it has, every command answers "Game Over".
+func (state *GameState) over() bool {
+	return state.Player.Dead || state.Abandoned
 }
 
 // levelState is one level's full content: everything about a level
@@ -164,6 +174,9 @@ const (
 	// pendingUseOn is an item, already chosen, whose use asks which of the
 	// Player's other items to use it on: Candidates are those, by letter.
 	pendingUseOn pendingAction = "use_on"
+	// pendingAbandon is the Player's request to abandon the quest, waiting
+	// on them to confirm it: the next key is the typed answer.
+	pendingAbandon pendingAction = "abandon"
 )
 
 // pendingSelection tracks a request that's waiting on a follow-up
@@ -179,7 +192,8 @@ type pendingSelection struct {
 	// Item is set once the item is chosen and the game is waiting on
 	// something else: a throw's direction, or the answer to Question.
 	Item *rules.Entity
-	// Question is what using Item asks, for pendingAnswer.
+	// Question is what using Item asks, for pendingAnswer, or the
+	// confirmation pendingAbandon asks.
 	Question string
 }
 

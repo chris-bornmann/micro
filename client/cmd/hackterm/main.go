@@ -37,6 +37,7 @@ var keyFor = map[string]string{
 	"left": "Left", "down": "Down", "up": "Up", "right": "Right",
 	"wait": ".", "get": ",", "up-stairs": "<", "down-stairs": ">",
 	"esc": "Escape", "escape": "Escape",
+	"abandon": "X",
 }
 
 // viewFor maps a typed word to one of the server's read-only views.

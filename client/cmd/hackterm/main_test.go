@@ -82,6 +82,7 @@ func TestKeyForTranslatesTypedWords(t *testing.T) {
 		"wait": ".", "get": ",",
 		"down-stairs": ">", "up-stairs": "<",
 		"esc": "Escape", "escape": "Escape",
+		"abandon": "X",
 	}
 	for typed, want := range cases {
 		if got := keyFor[typed]; got != want {
@@ -95,7 +96,7 @@ func TestKeyForTranslatesTypedWords(t *testing.T) {
 // word should reach the server so the server's own answer is what the player
 // sees.
 func TestKeyForLeavesRealKeyNamesAlone(t *testing.T) {
-	for _, key := range []string{"A", "D", "E", "T", "Up", "Down", "banana"} {
+	for _, key := range []string{"A", "D", "E", "T", "X", "Up", "Down", "banana"} {
 		if mapped, ok := keyFor[strings.ToLower(key)]; ok && mapped != key {
 			// Only flag it when the mapping would change a real key name into
 			// something else; lowercase aliases are intentional.
