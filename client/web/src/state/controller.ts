@@ -2,7 +2,7 @@
 // API responses into store updates. It knows nothing about the DOM.
 
 import { ApiError, type Api } from "../api/client";
-import type { CommandResponse, Frame, ViewName } from "../api/protocol";
+import { currentGameOf, type CommandResponse, type Frame, type ViewName } from "../api/protocol";
 import type { Intent } from "../input/keymap";
 import { LOG_LIMIT, type Store } from "./game";
 
@@ -22,16 +22,23 @@ export class Controller {
     private readonly ids: IdStorage,
   ) {}
 
-  /** Picks up the remembered game if the server still has it — it keeps
-   * games only in memory — and otherwise starts a new one. */
+  /** Picks up where the player left off, and otherwise starts a new game.
+   *
+   * A server with accounts knows the signed-in user's game in progress, so
+   * it is asked first: that finds the game from any tab or browser. Without
+   * accounts it knows nothing about the user, and the game this tab
+   * remembers is tried instead, if the server still has it — it keeps games
+   * only in memory. */
   async resume(seed?: number): Promise<void> {
-    const id = this.ids.get();
+    let id: string | null | undefined;
+    try {
+      id = (await this.api.me()).current_game_id ?? this.ids.get();
+    } catch (e) {
+      return this.fail(e);
+    }
     if (id) {
       try {
-        const frame = await this.api.frame(id);
-        this.store.gameId.value = id;
-        this.show(frame);
-        this.note(frame.turn, "Welcome back.");
+        await this.continueGame(id);
         return;
       } catch (e) {
         if (!(e instanceof ApiError && e.status === 404)) return this.fail(e);
@@ -43,7 +50,18 @@ export class Controller {
 
   async start(seed?: number): Promise<void> {
     await this.guard(async () => {
-      const res = await this.api.newGame(seed);
+      let res;
+      try {
+        res = await this.api.newGame(seed);
+      } catch (e) {
+        // A signed-in user has one game at a time, and the server names it
+        // when refusing another: say so, and carry on with that one.
+        const current = e instanceof ApiError && e.status === 409 ? currentGameOf(e.body) : undefined;
+        if (!current) throw e;
+        await this.continueGame(current);
+        this.note(this.store.frame.value?.turn ?? 0, "Your quest is not over yet. (Press x to abandon it.)");
+        return;
+      }
       this.ids.set(res.game_id);
       this.store.gameId.value = res.game_id;
       this.store.frame.value = null; // a new game's turn 0 is not stale
@@ -51,6 +69,17 @@ export class Controller {
       this.show(res.frame);
       this.note(res.frame.turn, "A new game begins. Press ? for help.");
     });
+  }
+
+  /** Shows game id, already under way, as the current game. */
+  private async continueGame(id: string): Promise<void> {
+    const frame = await this.api.frame(id);
+    this.ids.set(id);
+    this.store.gameId.value = id;
+    this.store.frame.value = null; // another game's turns are no guide
+    this.store.dialog.value = null;
+    this.show(frame);
+    this.note(frame.turn, "Welcome back.");
   }
 
   /** Carries out what a keypress meant. */

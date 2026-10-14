@@ -12,6 +12,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"micro/client/internal/httpclient"
 	"micro/client/internal/render"
 	"micro/client/internal/screen"
+	"micro/client/internal/signin"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -63,7 +65,17 @@ func main() {
 		return render.Brighten(grid, *brightness)
 	}
 
-	initial, err := c.NewGame(seed)
+	// A server with accounts wants the player signed in, and knows their
+	// game in progress; one without needs neither. Signing in happens in
+	// the browser, before there is a window, so it reports on stderr.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	err := signin.Setup(ctx, c, os.Stderr)
+	cancel()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "hackgui:", err)
+		os.Exit(1)
+	}
+	initial, resumed, err := c.Resume(seed)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hackgui:", err)
 		os.Exit(1)
@@ -78,6 +90,9 @@ func main() {
 	canvasImg.FillMode = canvas.ImageFillOriginal
 
 	statusBar := widget.NewLabel("Last key: (none)")
+	if resumed {
+		statusBar.SetText("Welcome back. (Press x to abandon this quest.)")
+	}
 	hudBar := widget.NewLabel(strings.Join(initial.HUD, "   "))
 	w.SetContent(container.NewVBox(canvasImg, hudBar, statusBar))
 	w.Resize(fyne.NewSize(float32(img.Bounds().Dx()), float32(img.Bounds().Dy())+70))
@@ -192,7 +207,7 @@ func main() {
 	// SetOnTypedKey only. This does NOT cover the picker's dynamic
 	// candidate letters (A-Z) — those are handled by unconditionally
 	// skipping SetOnTypedRune entirely while a picker is open, below.
-	gameKeysHandledByTypedKey := map[rune]bool{'.': true, ',': true, 'a': true, 'A': true, 'e': true, 'E': true, 'i': true, 'I': true, 'd': true, 'D': true, 'l': true, 'L': true, 't': true, 'T': true, 's': true, 'S': true}
+	gameKeysHandledByTypedKey := map[rune]bool{'.': true, ',': true, 'a': true, 'A': true, 'e': true, 'E': true, 'i': true, 'I': true, 'd': true, 'D': true, 'l': true, 'L': true, 't': true, 'T': true, 's': true, 'S': true, 'x': true, 'X': true}
 
 	// modifierKeys never mean anything on their own — Shift, Control,
 	// Alt/Option, and Command/Super only matter held in combination with

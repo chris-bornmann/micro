@@ -13,6 +13,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -23,6 +24,7 @@ import (
 
 	"micro/client/internal/ansi"
 	"micro/client/internal/httpclient"
+	"micro/client/internal/signin"
 )
 
 // keyFor translates what a person types into a protocol key name. The long
@@ -37,6 +39,7 @@ var keyFor = map[string]string{
 	"left": "Left", "down": "Down", "up": "Up", "right": "Right",
 	"wait": ".", "get": ",", "up-stairs": "<", "down-stairs": ">",
 	"esc": "Escape", "escape": "Escape",
+	"abandon": "X",
 }
 
 // viewFor maps a typed word to one of the server's read-only views.
@@ -60,7 +63,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	frame, err := c.NewGame(seed)
+	// A server with accounts wants the player signed in, and knows their
+	// game in progress; one without needs neither, and this costs nothing.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	err := signin.Setup(ctx, c, os.Stderr)
+	cancel()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "hackterm:", err)
+		os.Exit(1)
+	}
+	frame, resumed, err := c.Resume(seed)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "hackterm:", err)
 		os.Exit(1)
@@ -69,7 +81,11 @@ func main() {
 	out := bufio.NewWriter(os.Stdout)
 	defer out.Flush()
 
-	render(out, frame, nil, "")
+	var greeting []string
+	if resumed {
+		greeting = []string{"Welcome back. (Type X to abandon this quest.)"}
+	}
+	render(out, frame, greeting, "")
 	out.Flush()
 
 	in := bufio.NewScanner(os.Stdin)

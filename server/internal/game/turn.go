@@ -16,7 +16,8 @@ func handleKey(state *GameState, key string) (string, error) {
 //
 // If a picker is open (state.PendingSelection != nil), the key answers it
 // instead of being a command — see resolvePendingSelection. Otherwise, if
-// the Player is dead, it reports "Game Over" and does nothing else.
+// the game is over (see GameState.over), it reports "Game Over" and does
+// nothing else.
 // Otherwise it dispatches:
 //
 //	,      pick up what's here (a picker if there are several things)
@@ -25,6 +26,7 @@ func handleKey(state *GameState, key string) (string, error) {
 //	E      equip a weapon or armor (likewise)
 //	D      drop something (always a picker)
 //	T      throw something (a picker, then a direction)
+//	X      abandon the quest (asks to confirm first)
 //	arrows move, or attack whatever is in the way
 //	.      wait a turn
 //
@@ -40,7 +42,7 @@ func handleKeyMessages(state *GameState, key string) ([]string, error) {
 	if state.PendingSelection != nil {
 		return resolvePendingSelection(state, key), nil
 	}
-	if state.Player.Dead {
+	if state.over() {
 		return []string{"Game Over"}, nil
 	}
 
@@ -67,6 +69,8 @@ func handleKeyMessages(state *GameState, key string) ([]string, error) {
 		messages, spent = dropItem(state)
 	case "T":
 		messages, spent = throwItem(state)
+	case "X":
+		messages, spent = abandonQuest(state)
 	default:
 		var err error
 		if messages, err = move(state, key); err != nil {
@@ -179,6 +183,9 @@ func resolvePendingSelection(state *GameState, key string) []string {
 	sel := state.PendingSelection
 	state.PendingSelection = nil // cleared unconditionally: cancel or complete, either way it's resolved
 
+	if sel.Action == pendingAbandon {
+		return confirmAbandon(state, key)
+	}
 	if sel.Action != pendingUseOn && sel.Item != nil {
 		resolve := resolveThrow
 		if sel.Action == pendingAnswer {
@@ -225,4 +232,26 @@ func resolvePendingSelection(state *GameState, key string) []string {
 		return messages
 	}
 	return finishTurn(state, messages)
+}
+
+// abandonQuestQuestion is what X asks before it ends the game.
+const abandonQuestQuestion = "Really abandon your quest? (y/n)"
+
+// abandonQuest asks the Player to confirm that they want to give up. It
+// spends no turn: nothing has happened yet, and the answer comes next (see
+// confirmAbandon).
+func abandonQuest(state *GameState) ([]string, bool) {
+	state.PendingSelection = &pendingSelection{Action: pendingAbandon, Question: abandonQuestQuestion}
+	return nil, false
+}
+
+// confirmAbandon ends the game if key is a yes, and otherwise cancels
+// silently, as any other prompt does. Either way no turn passes: giving
+// up is not an action the monsters get to answer.
+func confirmAbandon(state *GameState, key string) []string {
+	if key != "y" && key != "Y" {
+		return nil
+	}
+	state.Abandoned = true
+	return []string{"You abandon your quest."}
 }

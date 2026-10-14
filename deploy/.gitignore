@@ -1,0 +1,6 @@
+# Terraform's working directory and any local state. The real state lives
+# in S3. Commit .terraform.lock.hcl, which pins the provider version, once
+# your first terraform init has written it.
+.terraform/
+*.tfstate
+*.tfstate.*

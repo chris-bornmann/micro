@@ -25,6 +25,8 @@ function memoryIds(initial: string | null = null): IdStorage {
 
 function fakeApi(over: Partial<Api> = {}): Api {
   return {
+    config: vi.fn(async () => ({})),
+    me: vi.fn(async () => ({})),
     newGame: vi.fn(async () => ({ game_id: "new", frame: frameAt(0) })),
     frame: vi.fn(async () => frameAt(5)),
     command: vi.fn(async (): Promise<CommandResponse> => ({ messages: [], frame: frameAt(1) })),
@@ -62,6 +64,30 @@ describe("Controller", () => {
     expect(api.newGame).toHaveBeenCalledWith(42);
     expect(store.gameId.value).toBe("new");
     expect(ids.get()).toBe("new");
+  });
+
+  it("continues the signed-in user's game in progress, wherever it was started", async () => {
+    const store = createStore();
+    const ids = memoryIds("this-tab");
+    const api = fakeApi({ me: vi.fn(async () => ({ current_game_id: "theirs" })) });
+    await new Controller(store, api, ids).resume();
+    expect(api.frame).toHaveBeenCalledWith("theirs");
+    expect(api.newGame).not.toHaveBeenCalled();
+    expect(store.gameId.value).toBe("theirs");
+    expect(ids.get()).toBe("theirs");
+  });
+
+  it("continues the game the server names when refusing a second one", async () => {
+    const api = fakeApi({
+      newGame: vi.fn(async () => {
+        throw new ApiError(409, "you already have a game in progress", { current_game_id: "busy" });
+      }),
+    });
+    const { store } = await started(api);
+    expect(api.frame).toHaveBeenCalledWith("busy");
+    expect(store.gameId.value).toBe("busy");
+    expect(store.frame.value?.turn).toBe(5);
+    expect(store.error.value).toBeNull();
   });
 
   it("opens a prompt without touching the frame", async () => {

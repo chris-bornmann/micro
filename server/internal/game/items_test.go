@@ -328,7 +328,7 @@ func TestInventoryLinesFormatsLetteredNamesAndMarksEquipment(t *testing.T) {
 // each documented command's key still appears somewhere.
 func TestHelpLinesMentionsEveryCommand(t *testing.T) {
 	joined := strings.Join(helpLines(), "\n")
-	for _, key := range []string{"Arrow keys", ".", ",", "<", ">", "A", "E", "D", "T", "I", "L", "S", "?", "Escape", "Q"} {
+	for _, key := range []string{"Arrow keys", ".", ",", "<", ">", "A", "E", "D", "T", "X", "I", "L", "S", "?", "Escape", "Q"} {
 		if !strings.Contains(joined, key) {
 			t.Errorf("expected helpLines to mention %q", key)
 		}

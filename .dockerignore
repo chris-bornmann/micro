@@ -1,0 +1,6 @@
+# The image needs only the server's Go sources and the web client's sources.
+*
+!server/
+!client/web/
+client/web/node_modules
+client/web/dist

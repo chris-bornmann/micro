@@ -34,6 +34,7 @@ const commands: Record<string, string> = {
   e: "E",
   d: "D",
   t: "T",
+  x: "X",
 };
 
 const views: Record<string, ViewName> = { i: "inventory", l: "look", s: "status", "?": "help" };

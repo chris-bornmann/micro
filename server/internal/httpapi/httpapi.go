@@ -4,12 +4,20 @@
 // real responsibilities are routing, turning errors into status codes, and
 // keeping a registry of live games.
 //
-// Scope, stated plainly: games live in memory, are never persisted, and are
-// never evicted. A restart loses every game in progress, and a long-running
-// server accumulates them. That is the right trade for a single-player game
-// played by one person on their own machine, which is what this is; it would
-// not be for anything else. The URLs carry a game id from the start so that
-// growing out of this does not mean changing the shape of the API.
+// Scope, stated plainly: games live in memory and are never persisted. A
+// restart loses every game in progress. That is the right trade for now;
+// the URLs carry a game id from the start so that growing out of it does not
+// mean changing the shape of the API.
+//
+// The server runs in one of two ways:
+//
+//   - Anonymous (no Authenticator), on a developer's machine: anyone who
+//     can reach it may start any number of games, and a game's unguessable
+//     ID is all that guards it. Games are never evicted.
+//   - With accounts (an Authenticator): every request names its user. Each
+//     game belongs to the user who started it, and is invisible to anyone
+//     else. A user has at most one game in progress, and starting the next
+//     one discards the last, so memory holds at most one game per user.
 //
 // Nothing a client sends can widen what it is allowed to see. Dungeon
 // geometry comes from the server's own flags, not from a request, and the
@@ -25,6 +33,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"sort"
@@ -39,32 +48,80 @@ import (
 // that a request cannot influence them.
 type NewGameFunc func(seed *int64) (*game.Game, error)
 
+// Options are a Server's optional settings. The zero value is an anonymous
+// server that logs nothing.
+type Options struct {
+	// Auth says who sent each request. Nil makes every request anonymous
+	// (see the package comment).
+	Auth Authenticator
+	// SignIn tells clients where to sign in, and is served at
+	// GET /v1/config. Set it whenever Auth is set.
+	SignIn *SignIn
+	// Web, if set, is the built web client, served at "/" so that the game
+	// and its API share one address and the browser needs no CORS.
+	Web fs.FS
+	// Logger, if set, logs every request that fails.
+	Logger *log.Logger
+}
+
+// SignIn is what a client needs to sign a user in with Cognito's hosted
+// page. None of it is secret: the app client is a public one, made for
+// code that runs on the player's own device.
+type SignIn struct {
+	// Domain is the hosted sign-in page's domain, such as
+	// "micro-hack.auth.us-east-1.amazoncognito.com".
+	Domain string `json:"domain"`
+	// ClientID is the user pool's app client for the game.
+	ClientID string `json:"client_id"`
+}
+
 // Server routes requests to live games.
 type Server struct {
 	mux    *http.ServeMux
 	new    NewGameFunc
+	auth   Authenticator
+	signIn *SignIn
 	logger *log.Logger
 
 	mu    sync.RWMutex
-	games map[string]*game.Game
+	games map[string]*entry
+	// latest is each user's most recent game, by ID. It is the game in
+	// progress while that game is not over. Anonymous requests have no
+	// entry here.
+	latest map[string]string
 }
 
-// New builds a Server. logger may be nil, in which case request errors are
-// not logged.
-func New(newGame NewGameFunc, logger *log.Logger) *Server {
+// entry is a live game and the user it belongs to ("" when anonymous).
+type entry struct {
+	game  *game.Game
+	owner string
+}
+
+// New builds a Server that starts games with newGame.
+func New(newGame NewGameFunc, opts Options) *Server {
 	s := &Server{
 		mux:    http.NewServeMux(),
 		new:    newGame,
-		logger: logger,
-		games:  map[string]*game.Game{},
+		auth:   opts.Auth,
+		signIn: opts.SignIn,
+		logger: opts.Logger,
+		games:  map[string]*entry{},
+		latest: map[string]string{},
 	}
 
 	s.mux.HandleFunc("GET /healthz", s.handleHealth)
+	s.mux.HandleFunc("GET /v1/config", s.handleConfig)
+	s.mux.HandleFunc("GET /v1/me", s.handleMe)
 	s.mux.HandleFunc("POST /v1/games", s.handleNewGame)
 	s.mux.HandleFunc("GET /v1/games/{id}/frame", s.handleFrame)
 	s.mux.HandleFunc("POST /v1/games/{id}/command", s.handleCommand)
 	s.mux.HandleFunc("POST /v1/games/{id}/commands", s.handleCommands)
 	s.mux.HandleFunc("GET /v1/games/{id}/views/{name}", s.handleView)
+	if opts.Web != nil {
+		// "GET /" matches only what no route above does, so the web
+		// client's files can never shadow the API.
+		s.mux.Handle("GET /", http.FileServerFS(opts.Web))
+	}
 
 	return s
 }
@@ -85,6 +142,27 @@ type NewGameRequest struct {
 type NewGameResponse struct {
 	GameID string     `json:"game_id"`
 	Frame  game.Frame `json:"frame"`
+}
+
+// GameInProgressResponse is the 409 a user gets for starting a game while
+// they still have one going. It names that game, so a client can offer to
+// continue it instead.
+type GameInProgressResponse struct {
+	Error         string `json:"error"`
+	CurrentGameID string `json:"current_game_id"`
+}
+
+// ConfigResponse tells a client how this server is set up before it has
+// signed in. SignIn is absent on an anonymous server, where there is no
+// signing in to do.
+type ConfigResponse struct {
+	SignIn *SignIn `json:"sign_in,omitempty"`
+}
+
+// MeResponse is what the server knows about the signed-in user: only their
+// game in progress, if any.
+type MeResponse struct {
+	CurrentGameID string `json:"current_game_id,omitempty"`
 }
 
 // CommandRequest is one keypress, named exactly as the game has always named
@@ -124,7 +202,37 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, ConfigResponse{SignIn: s.signIn})
+}
+
+func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	s.mu.RLock()
+	id := s.inProgress(user)
+	s.mu.RUnlock()
+	writeJSON(w, http.StatusOK, MeResponse{CurrentGameID: id})
+}
+
 func (s *Server) handleNewGame(w http.ResponseWriter, r *http.Request) {
+	user, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	// Check before doing the work of generating a level. The check is
+	// repeated when the game is stored, in case another request for the
+	// same user got there first.
+	s.mu.RLock()
+	current := s.inProgress(user)
+	s.mu.RUnlock()
+	if current != "" {
+		s.refuseSecondGame(w, r, current)
+		return
+	}
+
 	var req NewGameRequest
 	if err := decodeBody(r, &req); err != nil {
 		s.fail(w, r, http.StatusBadRequest, err)
@@ -152,7 +260,19 @@ func (s *Server) handleNewGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.mu.Lock()
-	s.games[id] = g
+	if current := s.inProgress(user); current != "" {
+		s.mu.Unlock()
+		s.refuseSecondGame(w, r, current)
+		return
+	}
+	if user != "" {
+		// The user's last game is over, so nothing can be done with it
+		// any more: let it go rather than keep every game a user ever
+		// played.
+		delete(s.games, s.latest[user])
+		s.latest[user] = id
+	}
+	s.games[id] = &entry{game: g, owner: user}
 	s.mu.Unlock()
 
 	writeJSON(w, http.StatusCreated, NewGameResponse{GameID: id, Frame: f})
@@ -269,19 +389,52 @@ func (s *Server) handleView(w http.ResponseWriter, r *http.Request) {
 
 // --- helpers ---
 
-// lookup resolves {id} to a live game, answering 404 itself if there is none.
+// lookup resolves {id} to a live game belonging to whoever sent r,
+// answering 401 or 404 itself if there is none. Someone else's game gets
+// the same 404 as a game that does not exist, so an ID that leaks reveals
+// nothing.
 func (s *Server) lookup(w http.ResponseWriter, r *http.Request) (*game.Game, bool) {
+	user, ok := s.authenticate(w, r)
+	if !ok {
+		return nil, false
+	}
 	id := r.PathValue("id")
 
 	s.mu.RLock()
-	g, ok := s.games[id]
+	e, ok := s.games[id]
 	s.mu.RUnlock()
 
-	if !ok {
+	if !ok || e.owner != user {
 		s.fail(w, r, http.StatusNotFound, fmt.Errorf("no game %q", id))
 		return nil, false
 	}
-	return g, true
+	return e.game, true
+}
+
+// inProgress returns the ID of user's game in progress, or "" if they have
+// none. Anonymous users never have one: they are not limited to one game.
+// Caller holds mu.
+func (s *Server) inProgress(user string) string {
+	if user == "" {
+		return ""
+	}
+	id := s.latest[user]
+	if e, ok := s.games[id]; !ok || e.game.Over() {
+		return ""
+	}
+	return id
+}
+
+// refuseSecondGame answers a request to start a game while the user has
+// one in progress.
+func (s *Server) refuseSecondGame(w http.ResponseWriter, r *http.Request, current string) {
+	if s.logger != nil {
+		s.logger.Printf("%s %s: 409: game %s is in progress", r.Method, r.URL.Path, current)
+	}
+	writeJSON(w, http.StatusConflict, GameInProgressResponse{
+		Error:         "you already have a game in progress",
+		CurrentGameID: current,
+	})
 }
 
 // decodeBody reads a JSON body, tolerating an empty one so that a request
@@ -315,10 +468,10 @@ func writeJSON(w http.ResponseWriter, code int, body any) {
 	}
 }
 
-// newGameID returns 128 random bits, hex-encoded. A game ID is the only
-// thing standing between one player's game and anyone else who can reach
-// the server — there is no other authentication — so it must not be
-// guessable, as a counter would be.
+// newGameID returns 128 random bits, hex-encoded. On a server without
+// accounts a game ID is the only thing standing between one player's game
+// and anyone else who can reach the server, so it must not be guessable, as
+// a counter would be.
 func newGameID() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

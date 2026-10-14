@@ -69,6 +69,8 @@ nothing.
 | Method | Path | Body → Response |
 |---|---|---|
 | `GET` | `/healthz` | → `{"status":"ok"}` |
+| `GET` | `/v1/config` | → `{"sign_in"?: {"domain","client_id"}}` |
+| `GET` | `/v1/me` | → `{"current_game_id"?}` |
 | `POST` | `/v1/games` | `{"seed":1234}` (optional) → `201 {"game_id","frame"}` |
 | `GET` | `/v1/games/{id}/frame` | → `{"frame"}` |
 | `POST` | `/v1/games/{id}/command` | `{"key":"Down"}` → `{"messages"?,"frame"?,"prompt"?}` |
@@ -78,17 +80,21 @@ nothing.
 `POST /v1/games/{id}/commands` replays a script in one round trip. It exists so
 a bug report can be four lines of JSON; the clients do not use it.
 
-A `game_id` is opaque: 128 random bits, hex-encoded. Nothing else stands
-between a game and anyone who can reach the server, so it must be unguessable;
-clients must not parse it or assume its form.
+A `game_id` is opaque: 128 random bits, hex-encoded. Without accounts nothing
+else stands between a game and anyone who can reach the server, so it must be
+unguessable; clients must not parse it or assume its form.
 
 ### Keys
 
 Exactly the names the game has always used, which are Fyne's key names:
 
 ```
-Up  Down  Left  Right  .  ,  <  >  A  E  D  T  Escape
+Up  Down  Left  Right  .  ,  <  >  A  E  D  T  X  Escape
 ```
+
+`X` abandons the quest. It asks first, as a `character` prompt; `y` or `Y`
+ends the game as death does, and any other answer keeps it going. Neither
+costs a turn.
 
 plus `A`–`J` while a prompt is open.
 
@@ -158,20 +164,57 @@ Views cost no turn and mutate nothing — looking at your own inventory is not a
 action. `lines` are preformatted and `title` is the caption to show them under,
 so a second client cannot title a view differently from the first.
 
+## Accounts
+
+`mapd -auth cognito` makes every `/v1/` request but `/v1/config` carry a
+signed-in user's Amazon Cognito access token, as `Authorization: Bearer
+<token>`. Without it, or with a token that does not check out, the answer is
+`401` with `WWW-Authenticate: Bearer realm="micro"`. `/healthz` and the web
+client's files need no token.
+
+A client learns whether to sign in, and where, from `GET /v1/config`. Its
+`sign_in` names the domain of Cognito's hosted sign-in page and the app client
+to sign in to, both public; it is absent when the server has no accounts.
+Clients sign in there by the authorization code flow with PKCE, and send the
+access token. The callback URLs the app client accepts are fixed (see
+`deploy/cognito.tf`): the site's root for the web client, and
+`http://localhost:47615/callback` for the others.
+
+With accounts:
+
+- **A game belongs to the user who started it.** Another user's game is `404`,
+  as though it did not exist.
+- **A user has one game in progress at a time.** `GET /v1/me` names it in
+  `current_game_id` (absent when there is none). Starting another is `409`,
+  naming the one in progress:
+
+  ```json
+  {"error":"you already have a game in progress","current_game_id":"9f2c..."}
+  ```
+
+  A client continues that game rather than reporting an error.
+- **A finished game** (death, or the quest abandoned) stays visible until the
+  user starts the next one, and is then let go.
+
+Without accounts (`-auth none`, the default) there are no users: anyone may
+start any number of games, and `/v1/me` always answers `{}`.
+
 ## Calling from a browser (CORS)
 
 `mapd -cors-origin http://localhost:5173,https://play.example` lets web pages
 from exactly those origins call the API. A matching `Origin` gets
 `Access-Control-Allow-Origin` (never `*`, never credentials) and the preflight a
-JSON `POST` triggers is answered `204`; any other origin is refused. Without the
+JSON `POST` (or the `Authorization` header) triggers is answered `204`; any other origin is refused. Without the
 flag there are no CORS headers at all, and only same-origin pages and
 non-browser clients can call the API.
 
 ## Errors
 
 Non-2xx responses carry `{"error":"..."}`. `400` for a malformed or
-over-specified request, `404` for an unknown game or view, `500` for a genuine
-server fault.
+over-specified request, `401` for a request that needs a signed-in user and
+has none, `404` for an unknown game or view (or another user's game), `409`
+for a second game in progress (see Accounts), `500` for a genuine server
+fault.
 
 ## Scope
 

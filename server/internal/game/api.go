@@ -193,6 +193,14 @@ func (g *Game) Frame() (Frame, error) {
 	return buildFrame(g.state, g.state.Turn, g.reveal, g.full), nil
 }
 
+// Over is whether the game has ended, by death or by abandoning the quest.
+// The server asks so it can let a player start their next game.
+func (g *Game) Over() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.state.over()
+}
+
 // Command applies one keypress.
 //
 // If the key left a picker open, the response is a Prompt and nothing else:
@@ -233,6 +241,9 @@ func (g *Game) pendingPrompt() *Prompt {
 	// for a throw — a direction, not a letter.
 	if sel.Action == pendingUseOn {
 		return &Prompt{Kind: PromptChoose, Title: sel.Question, Lines: pickerLines(g.state, sel.Candidates)}
+	}
+	if sel.Action == pendingAbandon {
+		return &Prompt{Kind: PromptCharacter, Title: "Abandon the Quest", Lines: []string{sel.Question}}
 	}
 	if sel.Action == pendingAnswer {
 		return &Prompt{Kind: PromptCharacter, Title: capitalized(g.state.Identity.Name(sel.Item)), Lines: []string{sel.Question}}

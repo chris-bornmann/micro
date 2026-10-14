@@ -32,7 +32,7 @@ func TestCORSAnswersThePreflight(t *testing.T) {
 	r.Header.Set("Access-Control-Request-Headers", "content-type")
 	w := httptest.NewRecorder()
 	corsServer().ServeHTTP(w, r)
-	if w.Code != http.StatusNoContent || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type" ||
+	if w.Code != http.StatusNoContent || w.Header().Get("Access-Control-Allow-Headers") != "Content-Type, Authorization" ||
 		w.Header().Get("Access-Control-Allow-Methods") != "GET, POST, OPTIONS" {
 		t.Errorf("code %d, headers %v", w.Code, w.Header())
 	}

@@ -109,6 +109,7 @@ func helpLines() []string {
 		"E         — Equip a weapon or piece of armor",
 		"D         — Drop an item",
 		"T         — Throw an item, then choose a direction",
+		"X         — Abandon the quest (asks first)",
 		"I         — Show inventory",
 		"L         — Look at what's on the floor here",
 		"S         — Show status (HP, attributes, active effects)",
