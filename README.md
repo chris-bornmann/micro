@@ -38,7 +38,7 @@ cd server && go run ./cmd/mapd -cors-origin http://localhost:5173
 cd client/web && npm install && npm run dev       # http://localhost:5173
 ```
 
-### In a container, or on AWS Lambda
+### In a container, or on AWS Fargate
 
 ```sh
 docker build -t mapd server
@@ -46,18 +46,13 @@ docker run --rm -p 8080:8080 mapd                              # :8080
 docker run --rm -p 8080:8080 mapd -addr :8080 -cors-origin http://localhost:5173
 ```
 
-The image also carries the [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter),
-so the same image can back a Lambda function (behind a function URL or API
-Gateway) with no code changes. Lambda runs on arm64 or x86_64; build for the
-one the function uses, e.g. `docker build --platform linux/arm64`.
+The same image runs as an ECS service on Fargate, behind a load balancer whose
+health check is `GET /healthz`. Fargate runs arm64 or x86_64; build for the
+one the task definition uses, e.g. `docker build --platform linux/arm64`.
 
-Games live in the server's memory (see `internal/httpapi`), and Lambda does
-not keep one server around: it starts a fresh instance after a few idle
-minutes, and runs concurrent requests on separate instances. So on Lambda a
-game survives only while one warm instance serves it. Setting the function's
-reserved concurrency to 1 keeps every request on the same instance, but an
-idle game is still lost when Lambda recycles it. Keeping games across that
-needs them stored outside the process.
+Games live in the server's memory (see `internal/httpapi`), so run exactly one
+task: a second one would not know the first one's games. A deploy or a task
+restart loses every game in progress.
 
 ## Testing
 
